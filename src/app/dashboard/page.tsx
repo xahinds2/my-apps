@@ -2,8 +2,8 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
-import { UserButton } from '@clerk/nextjs';
-import { Plus, Trash2, Search, ShoppingBag, ArrowRight, Pencil, Check, X } from 'lucide-react';
+import { useAuth, UserButton } from '@clerk/nextjs';
+import { Plus, Trash2, Search, ShoppingBag, ArrowRight, Pencil, Check, X, CloudOff, LogIn } from 'lucide-react';
 
 interface Wish {
   _id?: string;
@@ -15,9 +15,7 @@ interface Wish {
 const STORAGE_KEY = 'quickshop_wishes_v1';
 const hasClerk = !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
 
-function getId(w: Wish) {
-  return w._id || w.id || '';
-}
+function getId(w: Wish) { return w._id || w.id || ''; }
 
 function formatDate(d: string) {
   return new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -32,11 +30,15 @@ function saveStorage(data: Wish[]) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
 }
 
-export default function Dashboard() {
+/* ─────────────────────────────────────────────
+   Core dashboard — works for both signed-in and guest users
+   isSignedIn=true  → syncs with MongoDB via API
+   isSignedIn=false → localStorage only
+───────────────────────────────────────────── */
+function DashboardContent({ isSignedIn }: { isSignedIn: boolean }) {
   const [wishes, setWishes] = useState<Wish[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(true);
-  const [isDemoMode, setIsDemoMode] = useState(false);
   const [adding, setAdding] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -47,28 +49,22 @@ export default function Dashboard() {
   const fetchWishes = useCallback(async () => {
     setIsLoading(true);
     try {
+      if (!isSignedIn) {
+        setWishes(loadStorage());
+        return;
+      }
       const res = await fetch('/api/wishes');
       const json = await res.json();
-      if (json.source === 'mock') {
-        setIsDemoMode(true);
-        setWishes(loadStorage());
-      } else {
-        setWishes(json.data || []);
-      }
+      setWishes(json.data || []);
     } catch {
-      setIsDemoMode(true);
       setWishes(loadStorage());
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [isSignedIn]);
 
   useEffect(() => { fetchWishes(); }, [fetchWishes]);
-
-  // Focus edit input when editing starts
-  useEffect(() => {
-    if (editingId) editRef.current?.focus();
-  }, [editingId]);
+  useEffect(() => { if (editingId) editRef.current?.focus(); }, [editingId]);
 
   const addWish = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,7 +73,7 @@ export default function Dashboard() {
     setAdding(true);
     setInput('');
     try {
-      if (isDemoMode) {
+      if (!isSignedIn) {
         const newWish: Wish = { id: `local-${Date.now()}`, text, createdAt: new Date().toISOString() };
         const updated = [newWish, ...wishes];
         setWishes(updated);
@@ -101,7 +97,7 @@ export default function Dashboard() {
     const id = getId(wish);
     setDeletingId(id);
     try {
-      if (isDemoMode || id.startsWith('local-')) {
+      if (!isSignedIn || id.startsWith('local-')) {
         const updated = wishes.filter(w => getId(w) !== id);
         setWishes(updated);
         saveStorage(updated);
@@ -114,11 +110,7 @@ export default function Dashboard() {
     }
   };
 
-  const startEdit = (wish: Wish) => {
-    setEditingId(getId(wish));
-    setEditText(wish.text);
-  };
-
+  const startEdit = (wish: Wish) => { setEditingId(getId(wish)); setEditText(wish.text); };
   const cancelEdit = () => { setEditingId(null); setEditText(''); };
 
   const saveEdit = async (wish: Wish) => {
@@ -126,7 +118,7 @@ export default function Dashboard() {
     const text = editText.trim();
     if (!text || text === wish.text) { cancelEdit(); return; }
 
-    if (isDemoMode || id.startsWith('local-')) {
+    if (!isSignedIn || id.startsWith('local-')) {
       const updated = wishes.map(w => getId(w) === id ? { ...w, text } : w);
       setWishes(updated);
       saveStorage(updated);
@@ -157,25 +149,41 @@ export default function Dashboard() {
           </Link>
 
           <div className="flex items-center space-x-3">
-            {isDemoMode && (
-              <span className="px-2 py-0.5 text-[10px] font-semibold rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 tracking-wide">
-                DEMO
-              </span>
-            )}
-            {hasClerk ? (
+            {isSignedIn ? (
               <UserButton />
             ) : (
-              <Link href="/sign-in" className="text-xs text-slate-500 hover:text-white transition">
-                Sign In
+              <Link
+                href="/sign-in"
+                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg border border-white/10 bg-slate-900/60 hover:bg-slate-800/80 text-xs font-semibold text-slate-300 hover:text-white transition"
+              >
+                <LogIn className="h-3.5 w-3.5" />
+                <span>Sign In</span>
               </Link>
             )}
           </div>
         </div>
       </header>
 
+      {/* Guest banner */}
+      {!isSignedIn && (
+        <div className="border-b border-amber-500/10 bg-amber-500/5">
+          <div className="max-w-2xl mx-auto px-6 py-2.5 flex items-center justify-between gap-4">
+            <div className="flex items-center space-x-2 text-xs text-amber-400/80">
+              <CloudOff className="h-3.5 w-3.5 shrink-0" />
+              <span>Wishes are saved in this browser only.</span>
+            </div>
+            <Link
+              href="/sign-in"
+              className="text-[11px] font-semibold text-indigo-400 hover:text-indigo-300 whitespace-nowrap transition"
+            >
+              Sign in to sync →
+            </Link>
+          </div>
+        </div>
+      )}
+
       {/* Main */}
       <main className="flex-grow max-w-2xl mx-auto w-full px-6 py-10 space-y-8">
-        {/* Title */}
         <div>
           <h1 className="text-2xl font-bold text-white">My Wishlist</h1>
           <p className="text-xs text-slate-500 mt-1">
@@ -217,7 +225,7 @@ export default function Dashboard() {
             </div>
             <p className="text-slate-400 text-sm font-medium">Your wishlist is empty</p>
             <p className="text-slate-600 text-xs max-w-xs leading-relaxed">
-              Type anything above — a product idea, a category, or something you&apos;re hunting for. Hit Add or press Enter.
+              Type anything above — a product idea, a category, or something you&apos;re hunting for.
             </p>
           </div>
         ) : (
@@ -233,7 +241,6 @@ export default function Dashboard() {
                   className={`glass-panel rounded-2xl border border-white/5 transition-all duration-200 ${isDeleting ? 'opacity-30 scale-[0.98] pointer-events-none' : ''}`}
                 >
                   {isEditing ? (
-                    /* Edit mode */
                     <div className="flex items-center gap-2 px-4 py-3">
                       <input
                         ref={editRef}
@@ -250,17 +257,12 @@ export default function Dashboard() {
                       </button>
                     </div>
                   ) : (
-                    /* View mode */
                     <div className="flex items-center gap-3 px-4 py-3.5">
-                      {/* Text + date */}
                       <div className="flex-grow min-w-0">
                         <p className="text-sm font-medium text-slate-100 leading-snug">{wish.text}</p>
                         <p className="text-[11px] text-slate-600 mt-0.5">{formatDate(wish.createdAt)}</p>
                       </div>
-
-                      {/* Actions */}
                       <div className="flex items-center gap-1.5 shrink-0">
-                        {/* Find products — will be wired in next phase */}
                         <button
                           title="Find products"
                           className="flex items-center space-x-1 px-2.5 py-1.5 rounded-lg bg-indigo-600/10 border border-indigo-500/20 text-indigo-400 text-xs font-semibold hover:bg-indigo-600/20 transition duration-200"
@@ -269,22 +271,10 @@ export default function Dashboard() {
                           <span>Find</span>
                           <ArrowRight className="h-3 w-3" />
                         </button>
-
-                        {/* Edit */}
-                        <button
-                          onClick={() => startEdit(wish)}
-                          title="Edit wish"
-                          className="p-1.5 rounded-lg text-slate-600 hover:text-slate-300 hover:bg-slate-700/40 transition"
-                        >
+                        <button onClick={() => startEdit(wish)} title="Edit wish" className="p-1.5 rounded-lg text-slate-600 hover:text-slate-300 hover:bg-slate-700/40 transition">
                           <Pencil className="h-3.5 w-3.5" />
                         </button>
-
-                        {/* Delete */}
-                        <button
-                          onClick={() => deleteWish(wish)}
-                          title="Delete wish"
-                          className="p-1.5 rounded-lg text-slate-600 hover:text-red-400 hover:bg-red-500/10 transition"
-                        >
+                        <button onClick={() => deleteWish(wish)} title="Delete wish" className="p-1.5 rounded-lg text-slate-600 hover:text-red-400 hover:bg-red-500/10 transition">
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
                       </div>
@@ -296,14 +286,39 @@ export default function Dashboard() {
           </ul>
         )}
 
-        {/* Wish count */}
         {wishes.length > 0 && (
           <p className="text-center text-[11px] text-slate-700">
             {wishes.length} {wishes.length === 1 ? 'wish' : 'wishes'}
-            {isDemoMode && ' · stored locally'}
+            {!isSignedIn && ' · saved in this browser'}
           </p>
         )}
       </main>
     </div>
   );
+}
+
+/* ─────────────────────────────────────────────
+   Reads Clerk auth state, then renders content.
+   Only mounted when Clerk is configured.
+───────────────────────────────────────────── */
+function AuthDashboard() {
+  const { isSignedIn, isLoaded } = useAuth();
+
+  if (!isLoaded) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="w-6 h-6 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
+      </div>
+    );
+  }
+
+  return <DashboardContent isSignedIn={!!isSignedIn} />;
+}
+
+/* ─────────────────────────────────────────────
+   Entry point — chooses auth-aware vs guest mode
+───────────────────────────────────────────── */
+export default function Dashboard() {
+  if (!hasClerk) return <DashboardContent isSignedIn={false} />;
+  return <AuthDashboard />;
 }
