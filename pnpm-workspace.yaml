@@ -1,4 +1,0 @@
-allowBuilds:
-  '@clerk/shared': false
-  sharp: false
-  unrs-resolver: false
