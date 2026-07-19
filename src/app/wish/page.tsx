@@ -4,13 +4,39 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@clerk/nextjs';
 import AuthButton from '@/components/AuthButton';
-import { Plus, Trash2, Search, ShoppingBag, ArrowRight, Pencil, Check, X, LayoutGrid } from 'lucide-react';
+import { Plus, Trash2, Search, ShoppingBag, ArrowRight, Pencil, Check, X, LayoutGrid, TrendingDown } from 'lucide-react';
+
+interface PriceHistoryEntry {
+  price: number;
+  store: string;
+  date: string;
+}
+
+interface PriceData {
+  loading: boolean;
+  latestPrice?: number;
+  latestStore?: string;
+  currency?: string;
+  productCount?: number;
+  lowestPrice6m?: number | null;
+  lowestStore6m?: string | null;
+  lowestDate6m?: string | null;
+  alternatives?: { title: string; price: number; store: string; url: string; image: string }[];
+}
 
 interface Wish {
   _id?: string;
   id?: string;
   text: string;
   createdAt: string;
+  priceSnapshot?: {
+    latestPrice?: number;
+    latestStore?: string;
+    currency?: string;
+    productCount?: number;
+    checkedAt?: string;
+  };
+  priceHistory?: PriceHistoryEntry[];
 }
 
 const STORAGE_KEY = 'quickshop_wishes_v1';
@@ -54,6 +80,23 @@ function formatDate(d: string) {
   return new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
+function formatPrice(price: number, currency = 'INR') {
+  return new Intl.NumberFormat('en-IN', { style: 'currency', currency, maximumFractionDigits: 0 }).format(price);
+}
+
+function capitalizeStore(store?: string | null) {
+  if (!store) return '';
+  return store.charAt(0).toUpperCase() + store.slice(1);
+}
+
+function computeLow6m(history?: PriceHistoryEntry[]) {
+  if (!history?.length) return null;
+  const cutoff = Date.now() - 180 * 24 * 60 * 60 * 1000;
+  const recent = history.filter(h => new Date(h.date).getTime() >= cutoff);
+  if (!recent.length) return null;
+  return recent.reduce((min, h) => (h.price < min.price ? h : min), recent[0]);
+}
+
 function loadStorage(): Wish[] {
   if (typeof window === 'undefined') return [];
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch { return []; }
@@ -76,6 +119,8 @@ function WishPage({ isSignedIn }: { isSignedIn: boolean }) {
   const [phIdx, setPhIdx] = useState(0);
   const [phVisible, setPhVisible] = useState(true);
   const [inputFocused, setInputFocused] = useState(false);
+  const [priceData, setPriceData] = useState<Record<string, PriceData>>({});
+  const fetchedIds = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -87,6 +132,52 @@ function WishPage({ isSignedIn }: { isSignedIn: boolean }) {
     }, 2500);
     return () => clearInterval(timer);
   }, []);
+
+  const fetchPriceData = useCallback(async (wish: Wish) => {
+    const id = getId(wish);
+    setPriceData(prev => ({ ...prev, [id]: { loading: true } }));
+    try {
+      if (isSignedIn && id && !id.startsWith('local-')) {
+        const snap = wish.priceSnapshot;
+        const isStale = !snap?.checkedAt || Date.now() - new Date(snap.checkedAt).getTime() > 3_600_000;
+        if (!isStale && snap?.latestPrice) {
+          const low = computeLow6m(wish.priceHistory);
+          setPriceData(prev => ({
+            ...prev,
+            [id]: {
+              loading: false,
+              latestPrice: snap.latestPrice,
+              latestStore: snap.latestStore,
+              currency: snap.currency,
+              productCount: snap.productCount,
+              lowestPrice6m: low?.price ?? null,
+              lowestStore6m: low?.store ?? null,
+              lowestDate6m: low?.date ?? null,
+            },
+          }));
+          return;
+        }
+        const res = await fetch(`/api/wishes/${id}/snapshot`, { method: 'POST' });
+        const json = await res.json();
+        setPriceData(prev => ({ ...prev, [id]: { loading: false, ...json } }));
+      } else {
+        const res = await fetch(`/api/products/summary?q=${encodeURIComponent(wish.text)}`);
+        const json = await res.json();
+        setPriceData(prev => ({ ...prev, [id]: { loading: false, ...json } }));
+      }
+    } catch {
+      setPriceData(prev => ({ ...prev, [id]: { loading: false } }));
+    }
+  }, [isSignedIn]);
+
+  useEffect(() => {
+    if (isLoading) return;
+    const toFetch = wishes.filter(w => !fetchedIds.current.has(getId(w)));
+    toFetch.forEach(w => {
+      fetchedIds.current.add(getId(w));
+      fetchPriceData(w);
+    });
+  }, [wishes, isLoading, fetchPriceData]);
 
   const fetchWishes = useCallback(async () => {
     setIsLoading(true);
@@ -168,7 +259,12 @@ function WishPage({ isSignedIn }: { isSignedIn: boolean }) {
       body: JSON.stringify({ text }),
     });
     const json = await res.json();
-    if (json.data) setWishes(prev => prev.map(w => getId(w) === id ? json.data : w));
+    if (json.data) {
+      setWishes(prev => prev.map(w => getId(w) === id ? json.data : w));
+      // Text changed — clear stale price data so it re-fetches
+      fetchedIds.current.delete(id);
+      setPriceData(prev => { const next = { ...prev }; delete next[id]; return next; });
+    }
     cancelEdit();
   };
 
@@ -266,21 +362,74 @@ function WishPage({ isSignedIn }: { isSignedIn: boolean }) {
                       <button onClick={cancelEdit} className="p-1.5 text-[#999] dark:text-[#555] hover:bg-black/5 dark:hover:bg-white/5 rounded transition"><X className="h-3.5 w-3.5" /></button>
                     </div>
                   ) : (
-                    <div className="flex items-center gap-3 px-4 py-3">
-                      <div className="flex-grow min-w-0">
-                        <p className="text-sm text-[#0a0a0a] dark:text-white truncate">{wish.text}</p>
-                        <p className="text-[11px] text-[#999] dark:text-[#444] mt-0.5">{formatDate(wish.createdAt)}</p>
+                    <div className="px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <div className="flex-grow min-w-0">
+                          <p className="text-sm text-[#0a0a0a] dark:text-white truncate">{wish.text}</p>
+                          <p className="text-[11px] text-[#999] dark:text-[#444] mt-0.5">{formatDate(wish.createdAt)}</p>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <Link
+                            href={`/wish/find?q=${encodeURIComponent(wish.text)}`}
+                            className="flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-[#d4d4d4] dark:border-[#333] text-[#999] dark:text-[#777] text-xs hover:border-[#999] hover:text-[#0a0a0a] dark:hover:border-[#555] dark:hover:text-white transition"
+                          >
+                            <Search className="h-3 w-3" /><span>Find</span><ArrowRight className="h-3 w-3" />
+                          </Link>
+                          <button onClick={() => startEdit(wish)} className="p-1.5 text-[#bbb] hover:text-[#0a0a0a] dark:text-[#444] dark:hover:text-white rounded transition"><Pencil className="h-3.5 w-3.5" /></button>
+                          <button onClick={() => deleteWish(wish)} className="p-1.5 text-[#bbb] hover:text-red-500 dark:text-[#444] dark:hover:text-red-400 rounded transition"><Trash2 className="h-3.5 w-3.5" /></button>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1 shrink-0">
-                        <Link
-                          href={`/wish/find?q=${encodeURIComponent(wish.text)}`}
-                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-[#d4d4d4] dark:border-[#333] text-[#999] dark:text-[#777] text-xs hover:border-[#999] hover:text-[#0a0a0a] dark:hover:border-[#555] dark:hover:text-white transition"
-                        >
-                          <Search className="h-3 w-3" /><span>Find</span><ArrowRight className="h-3 w-3" />
-                        </Link>
-                        <button onClick={() => startEdit(wish)} className="p-1.5 text-[#bbb] hover:text-[#0a0a0a] dark:text-[#444] dark:hover:text-white rounded transition"><Pencil className="h-3.5 w-3.5" /></button>
-                        <button onClick={() => deleteWish(wish)} className="p-1.5 text-[#bbb] hover:text-red-500 dark:text-[#444] dark:hover:text-red-400 rounded transition"><Trash2 className="h-3.5 w-3.5" /></button>
-                      </div>
+                      {/* Price metadata */}
+                      {(() => {
+                        const pd = priceData[id];
+                        if (!pd) return null;
+                        if (pd.loading) return (
+                          <div className="mt-2 flex gap-2">
+                            <div className="h-2.5 w-16 bg-[#ebebeb] dark:bg-[#1a1a1a] rounded animate-pulse" />
+                            <div className="h-2.5 w-20 bg-[#ebebeb] dark:bg-[#1a1a1a] rounded animate-pulse" />
+                          </div>
+                        );
+                        const hasPrice = !!pd.latestPrice;
+                        const showLow = pd.lowestPrice6m && hasPrice && pd.lowestPrice6m < pd.latestPrice!;
+                        const showAlts = !hasPrice && (pd.alternatives?.length ?? 0) > 0;
+                        return (
+                          <div className="mt-1.5 space-y-1">
+                            {hasPrice && (
+                              <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
+                                <span className="text-[11px] font-medium text-[#333] dark:text-[#ccc]">
+                                  {formatPrice(pd.latestPrice!, pd.currency)}
+                                  <span className="font-normal text-[#999] dark:text-[#555]"> · {capitalizeStore(pd.latestStore)}</span>
+                                </span>
+                                {showLow && (
+                                  <span className="text-[11px] text-emerald-600 dark:text-emerald-500 flex items-center gap-1">
+                                    <TrendingDown className="h-2.5 w-2.5" />
+                                    6m low {formatPrice(pd.lowestPrice6m!, pd.currency)} · {capitalizeStore(pd.lowestStore6m)}
+                                  </span>
+                                )}
+                                {pd.productCount !== undefined && (
+                                  <span className="text-[11px] text-[#bbb] dark:text-[#444]">{pd.productCount} {pd.productCount === 1 ? 'match' : 'matches'}</span>
+                                )}
+                              </div>
+                            )}
+                            {showAlts && (
+                              <div className="space-y-0.5">
+                                <p className="text-[11px] text-[#bbb] dark:text-[#444]">Not found · similar items:</p>
+                                {pd.alternatives!.slice(0, 3).map((alt, i) => (
+                                  <a key={i} href={alt.url} target="_blank" rel="noopener noreferrer"
+                                    className="flex items-center gap-1 text-[11px] text-[#888] dark:text-[#555] hover:text-[#0a0a0a] dark:hover:text-white transition">
+                                    <ArrowRight className="h-2.5 w-2.5 shrink-0" />
+                                    <span className="truncate">{alt.title}</span>
+                                    <span className="shrink-0 text-[#bbb] dark:text-[#444]">· {formatPrice(alt.price)} · {capitalizeStore(alt.store)}</span>
+                                  </a>
+                                ))}
+                              </div>
+                            )}
+                            {!hasPrice && !showAlts && (
+                              <p className="text-[11px] text-[#bbb] dark:text-[#444]">Not found in database yet</p>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
                   )}
                 </li>
