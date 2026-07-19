@@ -131,8 +131,8 @@ function WishPage({ isSignedIn }: { isSignedIn: boolean }) {
       <header className="sticky top-0 z-40 w-full border-b border-[#222] bg-black/90 backdrop-blur-md">
         <div className="max-w-2xl mx-auto px-6 h-14 flex items-center justify-between">
           <Link href="/" className="flex items-center space-x-2 group">
-            <ShoppingBag className="h-4 w-4 text-white" />
-            <span className="text-sm font-semibold">quick-shop</span>
+            <ShoppingBag className="h-4 w-4 text-violet-400" />
+            <span className="text-sm font-semibold">wish me</span>
           </Link>
           <div>
             {isSignedIn ? (

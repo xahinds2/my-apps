@@ -6,8 +6,8 @@ import './globals.css';
 const geist = Geist({ subsets: ['latin'], variable: '--font-geist' });
 
 export const metadata: Metadata = {
-  title: 'quick-shop',
-  description: 'A personal wishlist app — write what you want, search products, shortlist and buy.',
+  title: 'my apps',
+  description: 'A personal suite of minimal tools — wishlist, cards, health, finance, and travel.',
 };
 
 export default function RootLayout({
