@@ -68,12 +68,6 @@ const STORE_CONFIGS: StoreConfig[] = [
     activeClasses: 'border-teal-400 bg-teal-50 dark:bg-teal-500/10',
     iconColor: 'text-teal-500 dark:text-teal-400',
   },
-  {
-    id: 'google',    name: 'Google Shopping',  domain: 'google.com',
-    searchUrl: (q) => `https://www.google.com/search?q=${encodeURIComponent(q)}&tbm=shop`,
-    activeClasses: 'border-green-400 bg-green-50 dark:bg-green-500/10',
-    iconColor: 'text-green-500 dark:text-green-400',
-  },
 ];
 
 /* ─── Store chip component ───────────────────────────────────── */

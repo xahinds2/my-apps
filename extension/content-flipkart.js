@@ -1,8 +1,11 @@
 // Flipkart.com search results scraper
-// Flipkart's class names are generated and change often — uses data attributes where possible
 
 (async () => {
+  const U = window.WishMeScraperUtils;
+  if (!U) return;
+
   const products = [];
+  let droppedLowConfidence = 0;
 
   // Product links on Flipkart search pages all point to /p/ paths
   const links = document.querySelectorAll('a[href*="/p/"]');
@@ -11,46 +14,50 @@
     const href = link.href;
     if (!href.includes('flipkart.com') || !href.includes('/p/')) continue;
 
-    const container = link.closest('[data-id]') || link.parentElement?.parentElement;
+    // The <a> tag IS the product card — use it directly as container
+    const container = link;
 
-    // Title: first meaningful div/span inside the link
-    const titleEl = link.querySelector('div') || link.querySelector('span');
-    const title =
-      titleEl?.textContent?.trim() ||
-      link.getAttribute('title')?.trim();
+    // Title: img alt is set to the product name by Flipkart
+    const imgEl = container.querySelector('img[alt]');
+    const title = U.normalizeWhitespace(imgEl?.alt || link.getAttribute('title') || '');
     if (!title || title.length < 5) continue;
 
-    // Image: first img in the card container
-    const imgEl = container?.querySelector('img');
+    // Image URL
     const image = imgEl?.src || null;
 
-    // Price: look for ₹ symbol in the container
+    // storeProductId: use the stable pid query param, fallback to path slug
+    let storeProductId = '';
+    try {
+      storeProductId = new URL(href).searchParams.get('pid') || '';
+    } catch { /* ignore */ }
+    if (!storeProductId) {
+      const m = href.match(/\/p\/([a-zA-Z0-9]+)/);
+      if (!m) continue;
+      storeProductId = m[1];
+    }
+
+    // Canonical URL: strip tracking query params, keep only the path
+    const cleanUrl = href.split('?')[0];
+
+    // Price: find first ₹ leaf text node inside this card
     let price = null;
-    const allText = container ? Array.from(container.querySelectorAll('*')) : [];
-    for (const el of allText) {
+    for (const el of container.querySelectorAll('*')) {
       const txt = el.childNodes[0]?.textContent?.trim() || '';
       if (txt.startsWith('₹') && el.children.length === 0) {
-        const num = txt.replace(/[^0-9]/g, '');
-        if (num) { price = parseInt(num, 10); break; }
+        const n = U.parsePrice(txt);
+        if (n) { price = n; break; }
       }
     }
 
-    // Rating: look for a single number between 1-5 in a small element
+    // Rating: leaf element with a single number 1–5
     let rating = null;
-    for (const el of allText) {
+    for (const el of container.querySelectorAll('*')) {
       if (el.children.length > 0) continue;
-      const txt = el.textContent?.trim() || '';
-      const m = txt.match(/^([1-5](\.\d)?)$/);
+      const m = el.textContent?.trim().match(/^([1-5](\.\d)?)$/);
       if (m) { rating = parseFloat(m[1]); break; }
     }
 
-    // Stable URL: extract PID from path /p/{pid} → https://www.flipkart.com/product/p/{pid}
-    const pidMatch = href.match(/\/p\/([a-zA-Z0-9]+)/);
-    if (!pidMatch) continue;
-    const cleanUrl = `https://www.flipkart.com/product/p/${pidMatch[1]}`;
-    const storeProductId = pidMatch[1];
-
-    products.push({
+    const product = {
       title,
       price,
       currency: 'INR',
@@ -60,22 +67,33 @@
       storeProductId,
       rating,
       reviews: null,
-    });
+    };
+
+    if (U.scoreProduct(product) < 5) {
+      droppedLowConfidence += 1;
+      continue;
+    }
+
+    products.push(product);
   }
 
-  // Deduplicate by URL
+  // Deduplicate by storeProductId
   const seen = new Set();
   const unique = products.filter(p => {
-    if (seen.has(p.url)) return false;
-    seen.add(p.url);
+    if (seen.has(p.storeProductId)) return false;
+    seen.add(p.storeProductId);
     return true;
   });
 
   if (unique.length === 0) return;
 
+  const cardsFound = links.length;
+  const drift = U.buildDriftMeta('flipkart', window.location.href, cardsFound, unique.length, droppedLowConfidence);
+
   chrome.runtime.sendMessage({
     type: 'SAVE_PRODUCTS',
     products: unique,
     source: window.location.href,
+    diagnostics: drift,
   });
 })();

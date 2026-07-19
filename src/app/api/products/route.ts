@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db';
 import Product, { IProduct } from '@/models/Product';
 
+const ALLOWED_STORES = new Set(['amazon', 'flipkart', 'myntra', 'nykaa', 'croma']);
+
 // Allow Chrome extension origin
 function corsHeaders() {
   return {
@@ -20,6 +22,13 @@ function isAuthorized(req: NextRequest) {
   if (!token) return true; // dev mode — no token required
   const auth = req.headers.get('authorization') || '';
   return auth === `Bearer ${token}`;
+}
+
+function isDuplicateKeyError(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false;
+  const maybeErr = err as { code?: number; writeErrors?: Array<{ code?: number }> };
+  if (maybeErr.code === 11000) return true;
+  return Array.isArray(maybeErr.writeErrors) && maybeErr.writeErrors.some(e => e?.code === 11000);
 }
 
 // GET /api/products?q=<query>&page=1&limit=48&store=amazon
@@ -65,7 +74,7 @@ export async function POST(req: NextRequest) {
 
   await connectToDatabase();
 
-  const ops = items
+  const validItems = items
     .filter((p): p is Record<string, unknown> =>
       typeof p === 'object' && p !== null &&
       typeof (p as Record<string, unknown>).url === 'string' &&
@@ -73,32 +82,64 @@ export async function POST(req: NextRequest) {
       typeof (p as Record<string, unknown>).store === 'string' &&
       typeof (p as Record<string, unknown>).storeProductId === 'string'
     )
-    .map(p => {
-      // Only $set fields that are actually provided — never overwrite with null
-      const fields: Record<string, unknown> = { updatedAt: new Date() };
-      for (const [k, v] of Object.entries(p)) {
-        if (v !== null && v !== undefined) fields[k] = v;
-      }
-      return {
-        updateOne: {
-          filter: { store: p.store as IProduct['store'], storeProductId: p.storeProductId as string },
-          update: { $set: fields },
-          upsert: true,
-        },
-      };
+    .filter(p => ALLOWED_STORES.has(String(p.store)));
+
+  // Last-write-wins dedupe within a single request payload to avoid same-key upsert races.
+  const deduped = new Map<string, Record<string, unknown>>();
+  for (const p of validItems) {
+    const store = String(p.store).trim();
+    const storeProductId = String(p.storeProductId).trim();
+    if (!store || !storeProductId) continue;
+    deduped.set(`${store}::${storeProductId}`, {
+      ...p,
+      store,
+      storeProductId,
+      title: String(p.title).trim(),
+      url: String(p.url).trim(),
     });
+  }
+
+  const ops = Array.from(deduped.values()).map(p => {
+    // Only $set fields that are actually provided — never overwrite with null
+    const fields: Record<string, unknown> = { updatedAt: new Date() };
+    for (const [k, v] of Object.entries(p)) {
+      if (v !== null && v !== undefined) fields[k] = v;
+    }
+    return {
+      updateOne: {
+        filter: { store: p.store as IProduct['store'], storeProductId: p.storeProductId as string },
+        update: { $set: fields },
+        upsert: true,
+      },
+    };
+  });
 
   if (ops.length === 0) {
     return NextResponse.json({ saved: 0 }, { headers: corsHeaders() });
   }
 
   try {
-    const result = await Product.bulkWrite(ops);
+    const result = await Product.bulkWrite(ops, { ordered: false });
     return NextResponse.json(
       { saved: result.upsertedCount + result.modifiedCount },
       { headers: corsHeaders() }
     );
   } catch (err) {
+    if (isDuplicateKeyError(err)) {
+      // In concurrent upserts, unique index may reject a competing insert; retry as pure updates.
+      const updateOnlyOps = ops.map(op => ({
+        updateOne: {
+          ...op.updateOne,
+          upsert: false,
+        },
+      }));
+      const retry = await Product.bulkWrite(updateOnlyOps, { ordered: false });
+      return NextResponse.json(
+        { saved: retry.modifiedCount },
+        { headers: corsHeaders() }
+      );
+    }
+
     const msg = err instanceof Error ? err.message : String(err);
     console.error('[products POST]', msg);
     return NextResponse.json({ error: msg }, { status: 500, headers: corsHeaders() });

@@ -2,8 +2,12 @@
 // Works on: nykaa.com/search/result/?q=... and nykaa.com/*/*/c/* brand pages
 
 (async () => {
+  const U = window.WishMeScraperUtils;
+  if (!U) return;
+
   const products = [];
   const seen = new Set();
+  let droppedLowConfidence = 0;
 
   // Product links that are in the main grid (have productId param, not footer "root=footer")
   const productLinks = Array.from(
@@ -27,7 +31,7 @@
     if (!card || card.tagName === 'BODY') continue;
 
     // Title: h2 inside the card
-    const title = card.querySelector('h2')?.textContent?.trim();
+    const title = U.pickText(card, ['h2']);
     if (!title || title.length < 4) continue;
 
     // Image
@@ -38,15 +42,14 @@
       .map(s => s.textContent?.trim())
       .filter(t => t?.startsWith('₹'));
     const prices = priceSpans
-      .map(t => parseInt(t.replace(/[^0-9]/g, ''), 10))
+      .map(t => U.parsePrice(t))
       .filter(n => !isNaN(n) && n > 0);
     const price = prices.length ? Math.min(...prices) : null; // discounted = lowest
 
     // Rating count: span with pattern "( N )"
-    const reviewMatch = card.textContent?.match(/\(\s*(\d+)\s*\)/);
-    const reviews = reviewMatch ? parseInt(reviewMatch[1], 10) : null;
+    const reviews = U.parseReviews(card.textContent);
 
-    products.push({
+    const product = {
       title,
       price,
       currency: 'INR',
@@ -56,14 +59,25 @@
       storeProductId,
       rating: null,
       reviews,
-    });
+    };
+
+    if (U.scoreProduct(product) < 5) {
+      droppedLowConfidence += 1;
+      continue;
+    }
+
+    products.push(product);
   }
 
   if (products.length === 0) return;
+
+  const cardsFound = productLinks.length;
+  const drift = U.buildDriftMeta('nykaa', window.location.href, cardsFound, products.length, droppedLowConfidence);
 
   chrome.runtime.sendMessage({
     type: 'SAVE_PRODUCTS',
     products,
     source: window.location.href,
+    diagnostics: drift,
   });
 })();

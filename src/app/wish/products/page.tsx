@@ -23,7 +23,6 @@ const STORE_CONFIGS = [
   { id: 'myntra',   name: 'Myntra',           domain: 'myntra.com',     activeClasses: 'border-pink-400 bg-pink-50 dark:bg-pink-500/10 text-pink-600 dark:text-pink-400'            },
   { id: 'nykaa',    name: 'Nykaa',            domain: 'nykaa.com',      activeClasses: 'border-rose-400 bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400'            },
   { id: 'croma',    name: 'Croma',            domain: 'croma.com',      activeClasses: 'border-teal-400 bg-teal-50 dark:bg-teal-500/10 text-teal-600 dark:text-teal-400'            },
-  { id: 'google',   name: 'Google Shopping',  domain: 'google.com',     activeClasses: 'border-green-400 bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400'       },
 ];
 
 function favicon(domain: string) {

@@ -6,6 +6,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === 'SAVE_PRODUCTS') {
     const store = message.products[0]?.store || 'unknown';
     const titles = message.products.map(p => p.title).filter(Boolean);
+    const diagnostics = message.diagnostics || null;
     saveProducts(message.products).then(result => {
       sendResponse({ ok: true, ...result });
       // Update badge with count
@@ -13,7 +14,14 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       chrome.action.setBadgeBackgroundColor({ color: '#7c3aed' });
       setTimeout(() => chrome.action.setBadgeText({ text: '' }), 3000);
       // Save to scrape history
-      appendHistory({ store, count: message.products.length, titles, source: message.source });
+      appendHistory({ store, count: message.products.length, titles, source: message.source, diagnostics });
+
+      if (diagnostics?.driftWarning) {
+        console.warn(
+          `[WishMe Scraper] Potential selector drift for ${store}:`,
+          `extractionRate=${diagnostics.extractionRate}, cards=${diagnostics.cardsFound}, extracted=${diagnostics.extracted}`
+        );
+      }
     }).catch(err => {
       console.error('[WishMe Scraper] Error:', err.message);
       sendResponse({ ok: false, error: err.message });
@@ -22,9 +30,20 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 });
 
-async function appendHistory({ store, count, titles, source }) {
+async function appendHistory({ store, count, titles, source, diagnostics }) {
   const { scrapeHistory = [] } = await chrome.storage.local.get('scrapeHistory');
-  scrapeHistory.unshift({ store, count, titles: titles.slice(0, 5), source, ts: Date.now() });
+  scrapeHistory.unshift({
+    store,
+    count,
+    titles: titles.slice(0, 5),
+    source,
+    ts: Date.now(),
+    cardsFound: diagnostics?.cardsFound ?? null,
+    extracted: diagnostics?.extracted ?? null,
+    extractionRate: diagnostics?.extractionRate ?? null,
+    droppedLowConfidence: diagnostics?.droppedLowConfidence ?? null,
+    driftWarning: Boolean(diagnostics?.driftWarning),
+  });
   await chrome.storage.local.set({ scrapeHistory: scrapeHistory.slice(0, 20) });
 }
 

@@ -68,6 +68,7 @@ async function init() {
           <span class="scrape-count">${h.count} products</span>
           <span class="scrape-time">${timeAgo(h.ts)}</span>
         </div>
+        ${h.driftWarning ? `<div class="scrape-alert">Low extraction rate (${Math.round((h.extractionRate || 0) * 100)}%) - selectors may need update</div>` : ''}
         <div class="scrape-titles">
           ${(h.titles || []).map(t => `<div class="scrape-title">· ${t}</div>`).join('')}
         </div>

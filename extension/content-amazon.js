@@ -2,8 +2,12 @@
 // Selectors may need updating if Amazon changes their HTML structure
 
 (async () => {
+  const U = window.WishMeScraperUtils;
+  if (!U) return;
+
   const cards = document.querySelectorAll('[data-asin]:not([data-asin=""])');
   const products = [];
+  let droppedLowConfidence = 0;
 
   for (const card of cards) {
     const asin = card.getAttribute('data-asin');
@@ -12,14 +16,14 @@
     // Title — old layout: single `a-text-normal` span; new layout: brand + model
     // split across two sibling spans inside [data-cy="title-recipe"].
     // Use innerText on the title container so CSS-separated spans get a space.
-    let title = card.querySelector('h2 span.a-text-normal')?.textContent?.trim();
+    let title = U.pickText(card, ['h2 span.a-text-normal']);
     if (!title || title.length < 5) {
       const titleRecipe = card.querySelector('[data-cy="title-recipe"]') || card.querySelector('h2');
-      title = titleRecipe?.innerText?.trim() || titleRecipe?.textContent?.trim();
+      title = U.normalizeWhitespace(titleRecipe?.innerText || titleRecipe?.textContent || '');
     }
     if (!title || title.length < 5) continue;
     // Clean up: strip "Sponsored" label and normalize whitespace/newlines
-    title = title.replace(/^Sponsored\s*/i, '').replace(/\s*\n\s*/g, ' ').trim();
+    title = U.normalizeWhitespace(title.replace(/^Sponsored\s*/i, '').replace(/\s*\n\s*/g, ' '));
     if (!title || title.length < 5) continue;
 
     // Image
@@ -28,20 +32,17 @@
 
     // Price (whole part, e.g. "82,900")
     const priceEl = card.querySelector('.a-price-whole');
-    const priceText = priceEl?.textContent?.replace(/[^0-9]/g, '');
-    const price = priceText ? parseInt(priceText, 10) : null;
+    const price = U.parsePrice(priceEl?.textContent);
 
     // Rating (e.g. "4.5 out of 5 stars")
     const ratingEl = card.querySelector('span.a-icon-alt');
-    const ratingMatch = ratingEl?.textContent?.match(/^([\d.]+)/);
-    const rating = ratingMatch ? parseFloat(ratingMatch[1]) : null;
+    const rating = U.parseRating(ratingEl?.textContent);
 
     // Reviews count
     const reviewsEl = card.querySelector('span.a-size-base.s-underline-text');
-    const reviewsText = reviewsEl?.textContent?.replace(/[^0-9]/g, '');
-    const reviews = reviewsText ? parseInt(reviewsText, 10) : null;
+    const reviews = U.parseReviews(reviewsEl?.textContent);
 
-    products.push({
+    const product = {
       title,
       price,
       currency: 'INR',
@@ -51,14 +52,24 @@
       storeProductId: asin,
       rating,
       reviews,
-    });
+    };
+
+    if (U.scoreProduct(product) < 5) {
+      droppedLowConfidence += 1;
+      continue;
+    }
+
+    products.push(product);
   }
 
   if (products.length === 0) return;
+
+  const drift = U.buildDriftMeta('amazon', window.location.href, cards.length, products.length, droppedLowConfidence);
 
   chrome.runtime.sendMessage({
     type: 'SAVE_PRODUCTS',
     products,
     source: window.location.href,
+    diagnostics: drift,
   });
 })();

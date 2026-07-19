@@ -2,7 +2,11 @@
 // Covers: https://www.myntra.com/<search-term>
 
 (async () => {
+  const U = window.WishMeScraperUtils;
+  if (!U) return;
+
   const products = [];
+  let droppedLowConfidence = 0;
 
   // Each product card: li.product-base containing an anchor to /buy
   const cards = document.querySelectorAll('li.product-base');
@@ -18,9 +22,9 @@
     const url = `https://www.myntra.com/product/${storeProductId}`;
 
     // Brand (h3.product-brand) + product name (h4.product-product)
-    const brand = card.querySelector('h3.product-brand')?.textContent?.trim() || '';
-    const name  = card.querySelector('h4.product-product')?.textContent?.trim() || '';
-    const title = [brand, name].filter(Boolean).join(' ');
+    const brand = U.pickText(card, ['h3.product-brand']) || '';
+    const name  = U.pickText(card, ['h4.product-product']) || '';
+    const title = U.normalizeWhitespace([brand, name].filter(Boolean).join(' '));
     if (!title || title.length < 4) continue;
 
     // Image
@@ -30,10 +34,10 @@
     // Price — class is "product-price"; text may be "Rs. 29900Rs. 45900(Rs. 16000 OFF)"
     // Extract the first number (discounted / selling price)
     const priceText = card.querySelector('.product-price')?.textContent || '';
-    const priceMatch = priceText.match(/[\d,]+/);
-    const price = priceMatch ? parseInt(priceMatch[0].replace(/,/g, ''), 10) : null;
+    const firstNumber = (priceText.match(/[\d,]+/) || [null])[0];
+    const price = U.parsePrice(firstNumber);
 
-    products.push({
+    const product = {
       title,
       price,
       currency: 'INR',
@@ -43,14 +47,25 @@
       storeProductId,
       rating: null,
       reviews: null,
-    });
+    };
+
+    if (U.scoreProduct(product) < 5) {
+      droppedLowConfidence += 1;
+      continue;
+    }
+
+    products.push(product);
   }
 
   if (products.length === 0) return;
+
+  const cardsFound = cards.length;
+  const drift = U.buildDriftMeta('myntra', window.location.href, cardsFound, products.length, droppedLowConfidence);
 
   chrome.runtime.sendMessage({
     type: 'SAVE_PRODUCTS',
     products,
     source: window.location.href,
+    diagnostics: drift,
   });
 })();

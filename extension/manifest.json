@@ -22,21 +22,21 @@
         "https://www.amazon.in/s*",
         "https://www.amazon.in/*/s?*"
       ],
-      "js": ["content-amazon.js"],
+      "js": ["scraper-utils.js", "content-amazon.js"],
       "run_at": "document_idle"
     },
     {
       "matches": [
         "https://www.flipkart.com/search*"
       ],
-      "js": ["content-flipkart.js"],
+      "js": ["scraper-utils.js", "content-flipkart.js"],
       "run_at": "document_idle"
     },
     {
       "matches": [
         "https://www.myntra.com/*"
       ],
-      "js": ["content-myntra.js"],
+      "js": ["scraper-utils.js", "content-myntra.js"],
       "run_at": "document_idle"
     },
     {
@@ -44,14 +44,14 @@
         "https://www.nykaa.com/search/*",
         "https://www.nykaa.com/*/c/*"
       ],
-      "js": ["content-nykaa.js"],
+      "js": ["scraper-utils.js", "content-nykaa.js"],
       "run_at": "document_idle"
     },
     {
       "matches": [
         "https://www.croma.com/searchB*"
       ],
-      "js": ["content-croma.js"],
+      "js": ["scraper-utils.js", "content-croma.js"],
       "run_at": "document_idle"
     }
   ],
