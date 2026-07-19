@@ -1,12 +1,14 @@
 import type { Metadata } from 'next';
 import { Geist } from 'next/font/google';
 import { ClerkProvider } from '@clerk/nextjs';
+import ThemeProvider from '@/components/ThemeProvider';
+import ThemeToggle from '@/components/ThemeToggle';
 import './globals.css';
 
 const geist = Geist({ subsets: ['latin'], variable: '--font-geist' });
 
 export const metadata: Metadata = {
-  title: 'my apps',
+  title: 'xahinds2 - Applications',
   description: 'A personal suite of minimal tools — wishlist, cards, health, finance, and travel.',
 };
 
@@ -18,9 +20,12 @@ export default function RootLayout({
   const publishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
 
   const mainLayout = (
-    <html lang="en" className={`${geist.variable} scroll-smooth no-scrollbar`}>
-      <body className={`${geist.className} antialiased text-white bg-black`}>
-        {children}
+    <html lang="en" className={`${geist.variable} scroll-smooth no-scrollbar`} suppressHydrationWarning>
+      <body className={`${geist.className} antialiased`}>
+        <ThemeProvider>
+          {children}
+          <ThemeToggle />
+        </ThemeProvider>
       </body>
     </html>
   );
