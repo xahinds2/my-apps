@@ -13,7 +13,7 @@ export default function SignUpPage() {
 
       {/* Back link */}
       <div className="z-10 mb-8 self-start w-full max-w-md">
-        <Link href="/" className="inline-flex items-center space-x-2 text-xs text-slate-400 hover:text-white transition duration-200">
+        <Link href="/home" className="inline-flex items-center space-x-2 text-xs text-slate-400 hover:text-white transition duration-200">
           <ArrowLeft className="h-3.5 w-3.5" />
           <span>Back to Home</span>
         </Link>
