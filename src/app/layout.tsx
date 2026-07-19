@@ -1,6 +1,9 @@
 import type { Metadata } from 'next';
+import { Geist } from 'next/font/google';
 import { ClerkProvider } from '@clerk/nextjs';
 import './globals.css';
+
+const geist = Geist({ subsets: ['latin'], variable: '--font-geist' });
 
 export const metadata: Metadata = {
   title: 'quick-shop',
@@ -15,8 +18,8 @@ export default function RootLayout({
   const publishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
 
   const mainLayout = (
-    <html lang="en" className="scroll-smooth no-scrollbar">
-      <body className="antialiased text-slate-100">
+    <html lang="en" className={`${geist.variable} scroll-smooth no-scrollbar`}>
+      <body className={`${geist.className} antialiased text-white bg-black`}>
         {children}
       </body>
     </html>
