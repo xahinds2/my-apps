@@ -275,42 +275,85 @@ function FindContent() {
   const [query, setQuery] = useState(initial);
   const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [activeStore, setActiveStore] = useState<string | null>(null);
   const [clickedStores, setClickedStores] = useState<Set<string>>(new Set());
   const [searchMode, setSearchMode] = useState(false);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [total, setTotal] = useState(0);
+  const [lastQuery, setLastQuery] = useState(initial);
+  const [storeCounts, setStoreCounts] = useState<Record<string, number>>({});
 
-  const fetchProducts = useCallback(async (q: string) => {
-    setLoading(true);
-    setActiveStore(null);
-    setClickedStores(new Set());
+  const fetchMeta = useCallback(async (q: string) => {
     try {
-      const res = await fetch(`/api/products?q=${encodeURIComponent(q)}&limit=48`);
+      const res = await fetch(`/api/products/meta?q=${encodeURIComponent(q)}`);
       const json = await res.json();
-      setAllProducts(json.data || []);
+      setStoreCounts(json.storeCounts || {});
     } catch {
-      setAllProducts([]);
-    } finally {
-      setLoading(false);
+      setStoreCounts({});
     }
   }, []);
 
-  useEffect(() => { fetchProducts(initial); }, [initial, fetchProducts]);
+  const fetchProducts = useCallback(async (q: string, store: string | null, pageNum: number) => {
+    if (pageNum === 1) {
+      setLoading(true);
+      setAllProducts([]);
+    } else {
+      setLoadingMore(true);
+    }
+    try {
+      const storeParam = store ? `&store=${encodeURIComponent(store)}` : '';
+      const res = await fetch(`/api/products?q=${encodeURIComponent(q)}&limit=48&page=${pageNum}${storeParam}`);
+      const json = await res.json();
+      if (pageNum === 1) {
+        setAllProducts(json.data || []);
+      } else {
+        setAllProducts(prev => [...prev, ...(json.data || [])]);
+      }
+      setHasMore(json.hasMore ?? false);
+      setTotal(json.total ?? 0);
+      setPage(pageNum);
+    } catch {
+      if (pageNum === 1) setAllProducts([]);
+    } finally {
+      if (pageNum === 1) setLoading(false);
+      else setLoadingMore(false);
+    }
+  }, []);
+
+  const loadMore = useCallback(async () => {
+    await fetchProducts(lastQuery, activeStore, page + 1);
+  }, [fetchProducts, lastQuery, activeStore, page]);
+
+  const selectStore = useCallback((store: string | null) => {
+    setActiveStore(store);
+    fetchProducts(lastQuery, store, 1);
+  }, [fetchProducts, lastQuery]);
+
+  useEffect(() => {
+    if (initial) {
+      setLastQuery(initial);
+      fetchMeta(initial);
+      fetchProducts(initial, null, 1);
+    } else {
+      setLoading(false);
+    }
+  }, [initial, fetchMeta, fetchProducts]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    if (query.trim()) fetchProducts(query.trim());
+    const q = query.trim();
+    if (!q) return;
+    setActiveStore(null);
+    setClickedStores(new Set());
+    setLastQuery(q);
+    fetchMeta(q);
+    fetchProducts(q, null, 1);
   };
 
-  // Count per store
-  const countByStore = allProducts.reduce<Record<string, number>>((acc, p) => {
-    acc[p.store] = (acc[p.store] || 0) + 1;
-    return acc;
-  }, {});
-
-  // Filtered products
-  const displayed = activeStore
-    ? allProducts.filter(p => p.store === activeStore)
-    : allProducts;
+  const displayed = allProducts;
+  const metaTotal = Object.values(storeCounts).reduce((a, b) => a + b, 0);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -374,9 +417,9 @@ function FindContent() {
           </button>
 
           {/* All chip */}
-          {!searchMode && allProducts.length > 0 && (
+          {!searchMode && metaTotal > 0 && (
             <button
-              onClick={() => setActiveStore(null)}
+              onClick={() => selectStore(null)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all duration-150
                 ${activeStore === null
                   ? 'bg-violet-600 border-violet-600 text-white'
@@ -385,22 +428,22 @@ function FindContent() {
             >
               All
               <span className={`text-[10px] px-1 rounded-full ${activeStore === null ? 'bg-white/20' : 'bg-[#f0f0f0] dark:bg-[#1a1a1a] text-[#888] dark:text-[#555]'}`}>
-                {allProducts.length}
+                {metaTotal}
               </span>
             </button>
           )}
 
-          {STORE_CONFIGS.filter(cfg => searchMode || (countByStore[cfg.id] || 0) > 0).map(cfg => (
+          {STORE_CONFIGS.filter(cfg => searchMode || (storeCounts[cfg.id] || 0) > 0).map(cfg => (
             <StoreChip
               key={cfg.id}
               config={cfg}
-              count={countByStore[cfg.id] || 0}
+              count={storeCounts[cfg.id] || 0}
               active={activeStore === cfg.id}
               query={query || initial}
               clicked={clickedStores.has(cfg.id)}
               searchMode={searchMode}
               onFind={() => setClickedStores(prev => new Set(prev).add(cfg.id))}
-              onSelect={() => setActiveStore(activeStore === cfg.id ? null : cfg.id)}
+              onSelect={() => selectStore(activeStore === cfg.id ? null : cfg.id)}
             />
           ))}
         </div>
@@ -413,12 +456,28 @@ function FindContent() {
         ) : displayed.length > 0 ? (
           <div className="space-y-3">
             <p className="text-[11px] font-mono text-[#aaa] dark:text-[#444] uppercase tracking-widest">
-              {displayed.length} result{displayed.length !== 1 ? 's' : ''}
-              {activeStore ? ` · ${STORE_CONFIGS.find(s => s.id === activeStore)?.name}` : ' · all stores'}
+              {activeStore
+                ? `${displayed.length} of ${total} result${total !== 1 ? 's' : ''} · ${STORE_CONFIGS.find(s => s.id === activeStore)?.name}`
+                : `${displayed.length} of ${total} result${total !== 1 ? 's' : ''} · all stores`
+              }
             </p>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
               {displayed.map(p => <ProductCard key={p._id} product={p} />)}
             </div>
+            {hasMore && (
+              <div className="flex justify-center pt-4">
+                <button
+                  onClick={loadMore}
+                  disabled={loadingMore}
+                  className="px-6 py-2.5 text-sm font-semibold rounded-xl bg-violet-600 text-white hover:bg-violet-500 disabled:opacity-50 transition flex items-center gap-2"
+                >
+                  {loadingMore && (
+                    <span className="w-3.5 h-3.5 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                  )}
+                  {loadingMore ? 'Loading…' : `Load more`}
+                </button>
+              </div>
+            )}
           </div>
         ) : allProducts.length === 0 ? (
           <div className="py-14 flex flex-col items-center gap-3 text-center border border-dashed border-[#e0e0e0] dark:border-[#222] rounded-xl">

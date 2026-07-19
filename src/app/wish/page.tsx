@@ -185,7 +185,7 @@ function WishPage({ isSignedIn }: { isSignedIn: boolean }) {
           </div>
           <div className="flex items-center gap-3">
             <Link
-              href="/wish/products"
+              href="/wish/explore"
               className="flex items-center gap-1.5 text-xs text-[#999] dark:text-[#555] hover:text-[#0a0a0a] dark:hover:text-white transition"
             >
               <LayoutGrid className="h-3.5 w-3.5" />

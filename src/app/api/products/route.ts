@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db';
 import Product, { IProduct } from '@/models/Product';
+import type { PipelineStage } from 'mongoose';
 
 const ALLOWED_STORES = new Set(['amazon', 'flipkart', 'myntra', 'nykaa', 'croma']);
 
@@ -42,7 +43,13 @@ export async function GET(req: NextRequest) {
 
   await connectToDatabase();
 
-  const filter: Record<string, unknown> = {};
+  const STORE_LIST = [...ALLOWED_STORES];
+
+  const filter: Record<string, unknown> = {
+    title: { $exists: true, $ne: '' },
+    price: { $exists: true, $gt: 0 },
+    image: { $exists: true, $ne: '' },
+  };
   if (q) {
     const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const terms = q.toLowerCase().split(/\s+/).filter(t => t.length >= 2);
@@ -53,15 +60,58 @@ export async function GET(req: NextRequest) {
       ...(terms.length ? [{ keywords: { $in: terms } }] : []),
     ];
   }
-  if (store) filter.store = store;
 
-  const [products, total] = await Promise.all([
-    Product.find(filter).sort({ updatedAt: -1 }).skip(skip).limit(limit).lean(),
-    Product.countDocuments(filter),
+  // When a specific store is requested, use simple pagination
+  if (store && ALLOWED_STORES.has(store)) {
+    const storeFilter = { ...filter, store } as Record<string, unknown>;
+    const [products, total] = await Promise.all([
+      Product.find(storeFilter).sort({ updatedAt: -1 }).skip(skip).limit(limit).lean(),
+      Product.countDocuments(storeFilter),
+    ]);
+    return NextResponse.json(
+      { data: products, total, page, limit, hasMore: skip + products.length < total },
+      { headers: corsHeaders() }
+    );
+  }
+
+  // No store filter — distribute results evenly across all stores so the
+  // most-recently-scraped store doesn't fill the entire first page.
+  // Use `limit` per store so that stores with no matches don't reduce the
+  // total returned — remaining slots are filled by stores that do have results.
+  const perStore = limit;
+  const storeSkip = (page - 1) * perStore;
+
+  const facetStages: Record<string, PipelineStage.FacetPipelineStage[]> = {};
+  for (const s of STORE_LIST) {
+    facetStages[s] = [
+      { $match: { ...filter, store: s } },
+      { $sort: { updatedAt: -1 } },
+      { $skip: storeSkip },
+      { $limit: perStore },
+    ];
+  }
+
+  // Per-store counts needed for total and hasMore (not returned to client)
+  const [facetResult, storeCountArr] = await Promise.all([
+    Product.aggregate<Record<string, Record<string, unknown>[]>>([{ $facet: facetStages }]),
+    Promise.all(STORE_LIST.map(s => Product.countDocuments({ ...filter, store: s } as Record<string, unknown>))),
   ]);
 
+  const total = storeCountArr.reduce((a, b) => a + b, 0);
+  const hasMore = STORE_LIST.some((_, i) => storeSkip + perStore < storeCountArr[i]);
+
+  // Round-robin interleave: amazon, flipkart, myntra, nykaa, croma, amazon, ...
+  const buckets = STORE_LIST.map(s => facetResult[0]?.[s] ?? []);
+  const mixed: Record<string, unknown>[] = [];
+  const maxLen = Math.max(...buckets.map(b => b.length), 0);
+  for (let i = 0; i < maxLen; i++) {
+    for (const bucket of buckets) {
+      if (i < bucket.length) mixed.push(bucket[i]);
+    }
+  }
+
   return NextResponse.json(
-    { data: products, total, page, limit, hasMore: skip + products.length < total },
+    { data: mixed.slice(0, limit), total, page, limit, hasMore },
     { headers: corsHeaders() }
   );
 }
@@ -87,9 +137,11 @@ export async function POST(req: NextRequest) {
     .filter((p): p is Record<string, unknown> =>
       typeof p === 'object' && p !== null &&
       typeof (p as Record<string, unknown>).url === 'string' &&
-      typeof (p as Record<string, unknown>).title === 'string' &&
+      typeof (p as Record<string, unknown>).title === 'string' && String((p as Record<string, unknown>).title).trim() !== '' &&
       typeof (p as Record<string, unknown>).store === 'string' &&
-      typeof (p as Record<string, unknown>).storeProductId === 'string'
+      typeof (p as Record<string, unknown>).storeProductId === 'string' &&
+      typeof (p as Record<string, unknown>).image === 'string' && String((p as Record<string, unknown>).image).trim() !== '' &&
+      (p as Record<string, unknown>).price !== null && (p as Record<string, unknown>).price !== undefined && String((p as Record<string, unknown>).price).trim() !== ''
     )
     .filter(p => ALLOWED_STORES.has(String(p.store)));
 

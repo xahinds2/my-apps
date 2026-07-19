@@ -2,7 +2,7 @@
 
 import { Suspense, useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { ShoppingBag, Star, ExternalLink, Package } from 'lucide-react';
+import { ShoppingBag, Star, ExternalLink, Package, CheckCircle2 } from 'lucide-react';
 import AuthButton from '@/components/AuthButton';
 
 interface Product {
@@ -18,11 +18,11 @@ interface Product {
 }
 
 const STORE_CONFIGS = [
-  { id: 'amazon',   name: 'Amazon',          domain: 'amazon.in',      activeClasses: 'border-orange-400 bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400' },
-  { id: 'flipkart', name: 'Flipkart',         domain: 'flipkart.com',   activeClasses: 'border-blue-400 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400'           },
-  { id: 'myntra',   name: 'Myntra',           domain: 'myntra.com',     activeClasses: 'border-pink-400 bg-pink-50 dark:bg-pink-500/10 text-pink-600 dark:text-pink-400'            },
-  { id: 'nykaa',    name: 'Nykaa',            domain: 'nykaa.com',      activeClasses: 'border-rose-400 bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400'            },
-  { id: 'croma',    name: 'Croma',            domain: 'croma.com',      activeClasses: 'border-teal-400 bg-teal-50 dark:bg-teal-500/10 text-teal-600 dark:text-teal-400'            },
+  { id: 'amazon',   name: 'Amazon',   domain: 'amazon.in',   activeClasses: 'border-orange-400 bg-orange-50 dark:bg-orange-500/10', iconColor: 'text-orange-500 dark:text-orange-400' },
+  { id: 'flipkart', name: 'Flipkart', domain: 'flipkart.com', activeClasses: 'border-blue-400 bg-blue-50 dark:bg-blue-500/10',     iconColor: 'text-blue-500 dark:text-blue-400'     },
+  { id: 'myntra',   name: 'Myntra',   domain: 'myntra.com',  activeClasses: 'border-pink-400 bg-pink-50 dark:bg-pink-500/10',      iconColor: 'text-pink-500 dark:text-pink-400'     },
+  { id: 'nykaa',    name: 'Nykaa',    domain: 'nykaa.com',   activeClasses: 'border-rose-400 bg-rose-50 dark:bg-rose-500/10',      iconColor: 'text-rose-500 dark:text-rose-400'     },
+  { id: 'croma',    name: 'Croma',    domain: 'croma.com',   activeClasses: 'border-teal-400 bg-teal-50 dark:bg-teal-500/10',      iconColor: 'text-teal-500 dark:text-teal-400'     },
 ];
 
 function favicon(domain: string) {
@@ -45,9 +45,12 @@ function formatPrice(price?: number) {
 
 function StoreBadge({ store }: { store: string }) {
   const cfg = STORE_CONFIGS.find(s => s.id === store);
+  if (!cfg) return null;
   return (
-    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${cfg ? cfg.activeClasses : 'border-[#ddd] dark:border-[#333] text-[#aaa]'}`}>
-      {cfg?.name ?? store}
+    <span className={`flex items-center gap-1 text-[10px] font-semibold pl-1 pr-1.5 py-0.5 rounded-full border ${cfg.activeClasses}`}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={favicon(cfg.domain)} alt={cfg.name} className="h-3 w-3 rounded-sm" />
+      {cfg.name}
     </span>
   );
 }
@@ -141,20 +144,15 @@ function ProductsContent() {
 
   useEffect(() => { fetchPage(1, activeStore, true); }, [activeStore, fetchPage]);
 
-  // Store counts from total — need separate count fetch
   const [storeCounts, setStoreCounts] = useState<Record<string, number>>({});
   useEffect(() => {
-    // Fetch counts per store (unfiltered)
-    Promise.all(
-      STORE_CONFIGS.map(async cfg => {
-        const res = await fetch(`/api/products?store=${cfg.id}&limit=1`);
-        const json = await res.json();
-        return [cfg.id, json.total || 0] as [string, number];
-      })
-    ).then(pairs => setStoreCounts(Object.fromEntries(pairs)));
-  }, [products]); // refresh when products change
+    fetch('/api/products/meta')
+      .then(r => r.json())
+      .then(json => setStoreCounts(json.storeCounts || {}))
+      .catch(() => {});
+  }, []);
 
-  const storesWithProducts = STORE_CONFIGS.filter(s => storeCounts[s.id] > 0);
+  const metaTotal = Object.values(storeCounts).reduce((a, b) => a + b, 0);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -186,7 +184,7 @@ function ProductsContent() {
         </div>
 
         {/* Store filter chips */}
-        {storesWithProducts.length > 0 && (
+        {metaTotal > 0 && (
           <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={() => setActiveStore(null)}
@@ -197,22 +195,25 @@ function ProductsContent() {
             >
               All
               <span className={`text-[10px] px-1 rounded-full ${activeStore === null ? 'bg-white/20' : 'bg-[#f0f0f0] dark:bg-[#1a1a1a] text-[#888] dark:text-[#555]'}`}>
-                {total}
+                {metaTotal}
               </span>
             </button>
-            {storesWithProducts.map(cfg => (
+            {STORE_CONFIGS.filter(cfg => (storeCounts[cfg.id] || 0) > 0).map(cfg => (
               <button
                 key={cfg.id}
                 onClick={() => setActiveStore(activeStore === cfg.id ? null : cfg.id)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all duration-150
+                title={`${cfg.name} · ${storeCounts[cfg.id]} product${storeCounts[cfg.id] !== 1 ? 's' : ''}`}
+                className={`relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-full border transition-all duration-150
                   ${activeStore === cfg.id
                     ? cfg.activeClasses
-                    : 'border-[#e0e0e0] dark:border-[#2a2a2a] text-[#555] dark:text-[#666] hover:border-[#c0c0c0] dark:hover:border-[#444]'}`}
+                    : 'border-[#e0e0e0] dark:border-[#2a2a2a] hover:border-[#c0c0c0] dark:hover:border-[#444]'
+                  }`}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={favicon(cfg.domain)} alt={cfg.name} className="h-4 w-4 rounded-sm" />
-                {cfg.name}
-                <span className={`text-[10px] px-1 rounded-full ${activeStore === cfg.id ? 'bg-white/30 dark:bg-black/30' : 'bg-[#f0f0f0] dark:bg-[#1a1a1a] text-[#888] dark:text-[#555]'}`}>
+                <CheckCircle2 className={`h-2.5 w-2.5 ${activeStore === cfg.id ? 'text-current' : cfg.iconColor}`} />
+                <span className={`text-[10px] font-semibold px-1 rounded-full
+                  ${activeStore === cfg.id ? 'bg-white/30 dark:bg-black/30 text-current' : 'bg-[#f0f0f0] dark:bg-[#1a1a1a] text-[#888] dark:text-[#555]'}`}>
                   {storeCounts[cfg.id]}
                 </span>
               </button>
