@@ -100,6 +100,25 @@
     };
   }
 
+  function extractMetaKeywords() {
+    const content = document.querySelector('meta[name="keywords"]')?.getAttribute('content') || '';
+    return content.split(',').map(k => k.trim().toLowerCase()).filter(k => k.length >= 2);
+  }
+
+  const PAGE_KW_STOP = new Set(['and','with','for','the','from','new','pack','set','combo','buy','online','india','best','price','shop','get']);
+
+  function buildPageKeywords(parts) {
+    const set = new Set();
+    for (const part of parts) {
+      if (!part) continue;
+      const tokens = String(part).toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/);
+      for (const t of tokens) {
+        if (t.length >= 2 && !PAGE_KW_STOP.has(t)) set.add(t);
+      }
+    }
+    return Array.from(set).slice(0, 30);
+  }
+
   window.WishMeScraperUtils = {
     normalizeWhitespace,
     pickText,
@@ -110,5 +129,7 @@
     toJsonLdArray,
     scoreProduct,
     buildDriftMeta,
+    extractMetaKeywords,
+    buildPageKeywords,
   };
 })();

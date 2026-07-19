@@ -7,7 +7,15 @@
   const products = [];
   let droppedLowConfidence = 0;
 
-  // Product links on Flipkart search pages all point to /p/ paths
+  // Page-level metadata
+  const urlParams = new URLSearchParams(window.location.search);
+  const searchQuery = urlParams.get('q') || '';
+  const breadcrumbEl = document.querySelector('._2whKao') || document.querySelector('._1XkGVY') || document.querySelector('[class*="breadcrumb"]');
+  const breadcrumbText = U.normalizeWhitespace(breadcrumbEl?.textContent || '').split('>').pop()?.trim() || '';
+  const pageCategory = (breadcrumbText || searchQuery.split(' ')[0]).toLowerCase() || null;
+  const productType = searchQuery.trim().toLowerCase() || null;
+  const pageKeywords = U.buildPageKeywords([searchQuery, pageCategory, ...U.extractMetaKeywords().slice(0, 10)]);
+
   const links = document.querySelectorAll('a[href*="/p/"]');
 
   for (const link of links) {
@@ -65,6 +73,9 @@
       url: cleanUrl,
       store: 'flipkart',
       storeProductId,
+      category: pageCategory,
+      productType,
+      keywords: pageKeywords.length ? pageKeywords : null,
       rating,
       reviews: null,
     };

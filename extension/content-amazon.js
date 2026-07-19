@@ -9,6 +9,16 @@
   const products = [];
   let droppedLowConfidence = 0;
 
+  // Page-level metadata
+  const urlParams = new URLSearchParams(window.location.search);
+  const searchQuery = urlParams.get('k') || '';
+  const categoryParam = urlParams.get('i') || '';
+  const breadcrumbEl = document.querySelector('#wayfinding-breadcrumbs_feature_div');
+  const breadcrumbText = U.normalizeWhitespace(breadcrumbEl?.innerText || '').split('›')[0].trim();
+  const pageCategory = (breadcrumbText || categoryParam).toLowerCase() || null;
+  const productType = searchQuery.trim().toLowerCase() || null;
+  const pageKeywords = U.buildPageKeywords([searchQuery, pageCategory, ...U.extractMetaKeywords().slice(0, 10)]);
+
   for (const card of cards) {
     const asin = card.getAttribute('data-asin');
     if (!asin || asin.length < 5) continue;
@@ -50,6 +60,9 @@
       url: `https://www.amazon.in/dp/${asin}`,
       store: 'amazon',
       storeProductId: asin,
+      category: pageCategory,
+      productType,
+      keywords: pageKeywords.length ? pageKeywords : null,
       rating,
       reviews,
     };

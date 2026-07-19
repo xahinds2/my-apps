@@ -43,7 +43,16 @@ export async function GET(req: NextRequest) {
   await connectToDatabase();
 
   const filter: Record<string, unknown> = {};
-  if (q) filter.title = { $regex: q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' };
+  if (q) {
+    const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const terms = q.toLowerCase().split(/\s+/).filter(t => t.length >= 2);
+    filter.$or = [
+      { title: { $regex: escaped, $options: 'i' } },
+      { category: { $regex: escaped, $options: 'i' } },
+      { productType: { $regex: escaped, $options: 'i' } },
+      ...(terms.length ? [{ keywords: { $in: terms } }] : []),
+    ];
+  }
   if (store) filter.store = store;
 
   const [products, total] = await Promise.all([
@@ -96,14 +105,35 @@ export async function POST(req: NextRequest) {
       storeProductId,
       title: String(p.title).trim(),
       url: String(p.url).trim(),
+      ...(typeof p.category === 'string' && p.category.trim()
+        ? { category: p.category.trim().toLowerCase() }
+        : {}),
+      ...(typeof p.brand === 'string' && p.brand.trim()
+        ? { brand: p.brand.trim() }
+        : {}),
+      ...(typeof p.productType === 'string' && p.productType.trim()
+        ? { productType: p.productType.trim().toLowerCase() }
+        : {}),
+      ...(Array.isArray(p.keywords) && p.keywords.length
+        ? { keywords: (p.keywords as string[]).map((k: string) => k.toLowerCase().trim()).filter((k: string) => k.length >= 2) }
+        : {}),
     });
   }
 
+  // Whitelist of fields allowed into the DB.
+  // To add a new field: add it here + to the schema in Product.ts.
+  const ALLOWED_FIELDS = new Set([
+    'store', 'storeProductId', 'title', 'url',
+    'price', 'currency', 'image',
+    'rating', 'reviews',
+    'brand', 'category', 'productType', 'keywords',
+  ]);
+
   const ops = Array.from(deduped.values()).map(p => {
-    // Only $set fields that are actually provided — never overwrite with null
+    // Only $set whitelisted fields that are actually provided — never overwrite with null
     const fields: Record<string, unknown> = { updatedAt: new Date() };
     for (const [k, v] of Object.entries(p)) {
-      if (v !== null && v !== undefined) fields[k] = v;
+      if (ALLOWED_FIELDS.has(k) && v !== null && v !== undefined) fields[k] = v;
     }
     return {
       updateOne: {

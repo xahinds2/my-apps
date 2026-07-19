@@ -9,7 +9,20 @@
   const seen = new Set();
   let droppedLowConfidence = 0;
 
-  // Product links that are in the main grid (have productId param, not footer "root=footer")
+  // Page-level metadata
+  const urlParams = new URLSearchParams(window.location.search);
+  const searchQuery = urlParams.get('q') || '';
+  const pathParts = window.location.pathname.split('/').filter(Boolean);
+  // Handle brand pages: /brands/<name>/c/<id> and search pages: /search/result/
+  const isBrandPage = pathParts[0] === 'brands';
+  const brandName = isBrandPage ? (pathParts[1] || '') : '';
+  const pageBrand = brandName.replace(/-/g, ' ') || null;
+  const pageCategory = (searchQuery || brandName || pathParts[0] || '').toLowerCase().replace(/-/g, ' ') || null;
+  // productType = the product type searched; null on brand pages (brand != product type)
+  const productType = !isBrandPage ? (searchQuery || '').toLowerCase().replace(/-/g, ' ') || null : null;
+  const pageKeywords = U.buildPageKeywords([searchQuery || brandName, pageCategory, ...U.extractMetaKeywords().slice(0, 10)]);
+
+  // Product links in the main grid (have productId param, not footer "root=footer")
   const productLinks = Array.from(
     document.querySelectorAll('a[href*="/p/"][href*="productId"]')
   ).filter(a => !a.href.includes('root=footer'));
@@ -57,6 +70,10 @@
       url,
       store: 'nykaa',
       storeProductId,
+      brand: pageBrand,
+      category: pageCategory,
+      productType,
+      keywords: pageKeywords.length ? pageKeywords : null,
       rating: null,
       reviews,
     };

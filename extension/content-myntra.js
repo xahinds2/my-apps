@@ -8,7 +8,12 @@
   const products = [];
   let droppedLowConfidence = 0;
 
-  // Each product card: li.product-base containing an anchor to /buy
+  // Page-level metadata — Myntra URLs: myntra.com/<category>/...
+  const pathParts = window.location.pathname.split('/').filter(Boolean);
+  const pageCategory = (pathParts[0] || '').toLowerCase().replace(/-/g, ' ') || null;
+  const productType = pageCategory;
+  const pageKeywords = U.buildPageKeywords([pageCategory, ...U.extractMetaKeywords().slice(0, 10)]);
+
   const cards = document.querySelectorAll('li.product-base');
 
   for (const card of cards) {
@@ -22,7 +27,7 @@
     const url = `https://www.myntra.com/product/${storeProductId}`;
 
     // Brand (h3.product-brand) + product name (h4.product-product)
-    const brand = U.pickText(card, ['h3.product-brand']) || '';
+    const brand = U.pickText(card, ['h3.product-brand']) || null;
     const name  = U.pickText(card, ['h4.product-product']) || '';
     const title = U.normalizeWhitespace([brand, name].filter(Boolean).join(' '));
     if (!title || title.length < 4) continue;
@@ -45,6 +50,10 @@
       url,
       store: 'myntra',
       storeProductId,
+      brand: brand || null,
+      category: pageCategory,
+      productType,
+      keywords: pageKeywords.length ? pageKeywords : null,
       rating: null,
       reviews: null,
     };
