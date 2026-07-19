@@ -9,7 +9,7 @@ export default function Home() {
       <header className="sticky top-0 z-40 w-full border-b border-white/5 bg-slate-950/70 backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <span className="text-lg font-bold tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
-            My App
+            quick-shop
           </span>
           <Link
             href="/dashboard"
@@ -44,7 +44,7 @@ export default function Home() {
             href="/dashboard"
             className="px-6 py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-500 text-white font-semibold hover:from-indigo-500 hover:to-indigo-400 transition duration-300 shadow-[0_4px_24px_rgba(99,102,241,0.35)] flex items-center justify-center space-x-2 border border-indigo-400/20"
           >
-            <span>Open Dashboard</span>
+            <span>Start Wishlisting</span>
             <ArrowRight className="h-4 w-4" />
           </Link>
           <Link
@@ -52,6 +52,12 @@ export default function Home() {
             className="px-6 py-3 rounded-xl bg-slate-900 border border-white/5 text-slate-300 font-semibold hover:bg-slate-800 hover:text-white transition duration-300 text-center"
           >
             Sign In
+          </Link>
+          <Link
+            href="/sign-up"
+            className="px-6 py-3 rounded-xl bg-slate-900 border border-white/5 text-slate-300 font-semibold hover:bg-slate-800 hover:text-white transition duration-300 text-center"
+          >
+            Sign Up
           </Link>
         </div>
 

@@ -3,8 +3,8 @@ import { ClerkProvider } from '@clerk/nextjs';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'My App',
-  description: 'A Next.js 15 app with Clerk auth, MongoDB, and Tailwind CSS.',
+  title: 'quick-shop',
+  description: 'A personal wishlist app — write what you want, search products, shortlist and buy.',
 };
 
 export default function RootLayout({
