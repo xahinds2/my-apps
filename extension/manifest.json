@@ -1,0 +1,37 @@
+{
+  "manifest_version": 3,
+  "name": "Wish Me Scraper",
+  "version": "1.0",
+  "description": "Scrapes Amazon & Flipkart search results into your Wish Me product database.",
+  "permissions": ["storage"],
+  "host_permissions": [
+    "https://www.amazon.in/*",
+    "https://www.flipkart.com/*",
+    "http://localhost:3000/*",
+    "https://*.vercel.app/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.amazon.in/s*",
+        "https://www.amazon.in/*/s?*"
+      ],
+      "js": ["content-amazon.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://www.flipkart.com/search*"
+      ],
+      "js": ["content-flipkart.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Wish Me Scraper"
+  }
+}

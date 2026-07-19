@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import Link from 'next/link';
 import { useAuth } from '@clerk/nextjs';
 import AuthButton from '@/components/AuthButton';
-import { Plus, Trash2, Search, ShoppingBag, ArrowRight, Pencil, Check, X } from 'lucide-react';
+import { Plus, Trash2, Search, ShoppingBag, ArrowRight, Pencil, Check, X, LayoutGrid } from 'lucide-react';
 
 interface Wish {
   _id?: string;
@@ -180,7 +181,16 @@ function WishPage({ isSignedIn }: { isSignedIn: boolean }) {
             <ShoppingBag className="h-4 w-4 text-violet-400" />
             <span className="text-sm font-semibold">Wish Me</span>
           </div>
-          <AuthButton />
+          <div className="flex items-center gap-3">
+            <Link
+              href="/wish/products"
+              className="flex items-center gap-1.5 text-xs text-[#999] dark:text-[#555] hover:text-[#0a0a0a] dark:hover:text-white transition"
+            >
+              <LayoutGrid className="h-3.5 w-3.5" />
+              Explore
+            </Link>
+            <AuthButton />
+          </div>
         </div>
       </header>
 
@@ -260,9 +270,12 @@ function WishPage({ isSignedIn }: { isSignedIn: boolean }) {
                         <p className="text-[11px] text-[#999] dark:text-[#444] mt-0.5">{formatDate(wish.createdAt)}</p>
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
-                        <button title="Find products" className="flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-[#d4d4d4] dark:border-[#333] text-[#999] dark:text-[#777] text-xs hover:border-[#999] hover:text-[#0a0a0a] dark:hover:border-[#555] dark:hover:text-white transition">
+                        <Link
+                          href={`/wish/find?q=${encodeURIComponent(wish.text)}`}
+                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-[#d4d4d4] dark:border-[#333] text-[#999] dark:text-[#777] text-xs hover:border-[#999] hover:text-[#0a0a0a] dark:hover:border-[#555] dark:hover:text-white transition"
+                        >
                           <Search className="h-3 w-3" /><span>Find</span><ArrowRight className="h-3 w-3" />
-                        </button>
+                        </Link>
                         <button onClick={() => startEdit(wish)} className="p-1.5 text-[#bbb] hover:text-[#0a0a0a] dark:text-[#444] dark:hover:text-white rounded transition"><Pencil className="h-3.5 w-3.5" /></button>
                         <button onClick={() => deleteWish(wish)} className="p-1.5 text-[#bbb] hover:text-red-500 dark:text-[#444] dark:hover:text-red-400 rounded transition"><Trash2 className="h-3.5 w-3.5" /></button>
                       </div>
