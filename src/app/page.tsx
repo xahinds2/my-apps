@@ -1,285 +1,65 @@
-'use client';
-
-import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
-import { useAuth, UserButton } from '@clerk/nextjs';
-import { Plus, Trash2, Search, ShoppingBag, ArrowRight, Pencil, Check, X, LogIn } from 'lucide-react';
+import { ShoppingBag, CreditCard, Activity, BarChart2, Map, ArrowUpRight } from 'lucide-react';
 
-interface Wish {
-  _id?: string;
-  id?: string;
-  text: string;
-  createdAt: string;
-}
+const APPS = [
+  { num: '01', name: 'quick-shop', slug: '/wish', icon: ShoppingBag, desc: 'Write what you want, search real products, shortlist and buy.', live: true  },
+  { num: '02', name: 'flex-card',  slug: '#',     icon: CreditCard,  desc: 'Manage credit cards and track benefits, cashback, and rewards.', live: false },
+  { num: '03', name: 'healthify',  slug: '#',     icon: Activity,    desc: 'Log blood reports and diet. Monitor health trends over time.',   live: false },
+  { num: '04', name: 'finance',    slug: '#',     icon: BarChart2,   desc: 'Monthly finance tracker — income, expenses, savings goals.',     live: false },
+  { num: '05', name: 'travel',     slug: '#',     icon: Map,         desc: 'Plan trips, save destinations, and organise itineraries.',       live: false },
+] as const;
 
-const STORAGE_KEY = 'quickshop_wishes_v1';
-const hasClerk = !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
-
-function getId(w: Wish) { return w._id || w.id || ''; }
-
-function formatDate(d: string) {
-  return new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
-}
-
-function loadStorage(): Wish[] {
-  if (typeof window === 'undefined') return [];
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch { return []; }
-}
-
-function saveStorage(data: Wish[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-}
-
-function DashboardContent({ isSignedIn }: { isSignedIn: boolean }) {
-  const [wishes, setWishes] = useState<Wish[]>([]);
-  const [input, setInput] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
-  const [adding, setAdding] = useState(false);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editText, setEditText] = useState('');
-  const inputRef = useRef<HTMLInputElement>(null);
-  const editRef = useRef<HTMLInputElement>(null);
-
-  const fetchWishes = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      if (!isSignedIn) { setWishes(loadStorage()); return; }
-      const res = await fetch('/api/wishes');
-      const json = await res.json();
-      setWishes(json.data || []);
-    } catch {
-      setWishes(loadStorage());
-    } finally {
-      setIsLoading(false);
-    }
-  }, [isSignedIn]);
-
-  useEffect(() => { fetchWishes(); }, [fetchWishes]);
-  useEffect(() => { if (editingId) editRef.current?.focus(); }, [editingId]);
-
-  const addWish = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const text = input.trim();
-    if (!text || adding) return;
-    setAdding(true);
-    setInput('');
-    try {
-      if (!isSignedIn) {
-        const w: Wish = { id: `local-${Date.now()}`, text, createdAt: new Date().toISOString() };
-        const updated = [w, ...wishes];
-        setWishes(updated);
-        saveStorage(updated);
-        return;
-      }
-      const res = await fetch('/api/wishes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
-      });
-      const json = await res.json();
-      if (json.data) setWishes(prev => [json.data, ...prev]);
-    } finally {
-      setAdding(false);
-      inputRef.current?.focus();
-    }
-  };
-
-  const deleteWish = async (wish: Wish) => {
-    const id = getId(wish);
-    setDeletingId(id);
-    try {
-      if (!isSignedIn || id.startsWith('local-')) {
-        const updated = wishes.filter(w => getId(w) !== id);
-        setWishes(updated);
-        saveStorage(updated);
-        return;
-      }
-      await fetch(`/api/wishes/${id}`, { method: 'DELETE' });
-      setWishes(prev => prev.filter(w => getId(w) !== id));
-    } finally {
-      setDeletingId(null);
-    }
-  };
-
-  const startEdit = (wish: Wish) => { setEditingId(getId(wish)); setEditText(wish.text); };
-  const cancelEdit = () => { setEditingId(null); setEditText(''); };
-
-  const saveEdit = async (wish: Wish) => {
-    const id = getId(wish);
-    const text = editText.trim();
-    if (!text || text === wish.text) { cancelEdit(); return; }
-    if (!isSignedIn || id.startsWith('local-')) {
-      const updated = wishes.map(w => getId(w) === id ? { ...w, text } : w);
-      setWishes(updated);
-      saveStorage(updated);
-      cancelEdit();
-      return;
-    }
-    const res = await fetch(`/api/wishes/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text }),
-    });
-    const json = await res.json();
-    if (json.data) setWishes(prev => prev.map(w => getId(w) === id ? json.data : w));
-    cancelEdit();
-  };
-
+export default function Landing() {
   return (
-    <div className="min-h-screen text-white flex flex-col bg-black">
-      {/* Header */}
-      <header className="sticky top-0 z-40 w-full border-b border-[#333] bg-black/90 backdrop-blur-md">
-        <div className="max-w-2xl mx-auto px-6 h-14 flex items-center justify-between">
-          <Link href="/home" className="flex items-center space-x-2">
-            <ShoppingBag className="h-4 w-4 text-white" />
-            <span className="text-sm font-semibold text-white tracking-tight">quick-shop</span>
-          </Link>
-
-          <div className="flex items-center space-x-3">
-            {isSignedIn ? (
-              <UserButton />
-            ) : (
-              <Link
-                href="/sign-in"
-                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg border border-[#333] text-xs font-medium text-[#888] hover:text-white hover:border-white/30 transition"
-              >
-                <LogIn className="h-3.5 w-3.5" />
-                <span>Sign In</span>
-              </Link>
-            )}
-          </div>
+    <div className="min-h-screen bg-black text-white flex flex-col">
+      <header className="sticky top-0 z-40 w-full border-b border-[#222] bg-black/90 backdrop-blur-md">
+        <div className="max-w-4xl mx-auto px-6 h-14 flex items-center">
+          <span className="text-sm font-semibold">My Apps</span>
         </div>
       </header>
 
-      {/* Main */}
-      <main className="flex-grow max-w-2xl mx-auto w-full px-6 py-10 space-y-8">
-        <div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">My Wishlist</h1>
-          <p className="text-xs text-[#666] mt-1">
-            Jot down what you want — search for products when you&apos;re ready.
-          </p>
+      <main className="flex-grow max-w-4xl mx-auto w-full px-6 py-16 space-y-10">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-bold tracking-tight">A suite of minimal tools</h1>
+          <p className="text-[#555] text-sm">Personal apps — simple, useful, nothing extra.</p>
         </div>
 
-        {/* Add wish form */}
-        <form onSubmit={addWish} className="flex items-center gap-3">
-          <input
-            ref={inputRef}
-            type="text"
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            placeholder='e.g. "wireless headphones under ₹2000"'
-            className="flex-grow px-4 py-2.5 rounded-lg bg-[#111] border border-[#333] text-sm text-white placeholder:text-[#555] focus:outline-none focus:border-white/40 transition"
-          />
-          <button
-            type="submit"
-            disabled={!input.trim() || adding}
-            className="flex items-center space-x-2 px-4 py-2.5 rounded-lg bg-white hover:bg-[#e0e0e0] disabled:opacity-30 disabled:cursor-not-allowed text-black text-sm font-semibold transition shrink-0"
-          >
-            <Plus className="h-4 w-4" />
-            <span className="hidden sm:inline">Add</span>
-          </button>
-        </form>
-
-        {/* Wish list */}
-        {isLoading ? (
-          <div className="space-y-2.5">
-            {[1, 2, 3].map(i => (
-              <div key={i} className="h-[64px] rounded-lg bg-[#111] border border-[#222] animate-pulse" />
-            ))}
-          </div>
-        ) : wishes.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-28 space-y-3 text-center">
-            <div className="p-4 rounded-xl border border-[#222] bg-[#111]">
-              <ShoppingBag className="h-7 w-7 text-[#444]" />
-            </div>
-            <p className="text-[#888] text-sm font-medium">Your wishlist is empty</p>
-            <p className="text-[#555] text-xs max-w-xs leading-relaxed">
-              Type anything above — a product idea, category, or something you&apos;re hunting for.
-            </p>
-          </div>
-        ) : (
-          <ul className="space-y-2">
-            {wishes.map(wish => {
-              const id = getId(wish);
-              const isDeleting = deletingId === id;
-              const isEditing = editingId === id;
-
-              return (
-                <li
-                  key={id}
-                  className={`bg-[#111] border border-[#222] rounded-lg transition-all duration-200 ${isDeleting ? 'opacity-30 scale-[0.98] pointer-events-none' : 'hover:border-[#333]'}`}
-                >
-                  {isEditing ? (
-                    <div className="flex items-center gap-2 px-4 py-3">
-                      <input
-                        ref={editRef}
-                        value={editText}
-                        onChange={e => setEditText(e.target.value)}
-                        onKeyDown={e => { if (e.key === 'Enter') saveEdit(wish); if (e.key === 'Escape') cancelEdit(); }}
-                        className="flex-grow bg-transparent text-sm text-white focus:outline-none border-b border-white/30 pb-0.5"
-                      />
-                      <button onClick={() => saveEdit(wish)} className="p-1.5 rounded text-white hover:bg-white/10 transition">
-                        <Check className="h-3.5 w-3.5" />
-                      </button>
-                      <button onClick={cancelEdit} className="p-1.5 rounded text-[#555] hover:bg-white/5 transition">
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-3 px-4 py-3">
-                      <div className="flex-grow min-w-0">
-                        <p className="text-sm text-white leading-snug">{wish.text}</p>
-                        <p className="text-[11px] text-[#555] mt-0.5">{formatDate(wish.createdAt)}</p>
-                      </div>
-                      <div className="flex items-center gap-1 shrink-0">
-                        <button
-                          title="Find products"
-                          className="flex items-center space-x-1 px-2.5 py-1.5 rounded-md border border-[#333] text-[#888] text-xs font-medium hover:border-white/30 hover:text-white transition"
-                        >
-                          <Search className="h-3 w-3" />
-                          <span>Find</span>
-                          <ArrowRight className="h-3 w-3" />
-                        </button>
-                        <button onClick={() => startEdit(wish)} title="Edit" className="p-1.5 rounded text-[#555] hover:text-white hover:bg-white/8 transition">
-                          <Pencil className="h-3.5 w-3.5" />
-                        </button>
-                        <button onClick={() => deleteWish(wish)} title="Delete" className="p-1.5 rounded text-[#555] hover:text-red-400 hover:bg-red-500/10 transition">
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        )}
-
-        {wishes.length > 0 && (
-          <p className="text-center text-[11px] text-[#444]">
-            {wishes.length} {wishes.length === 1 ? 'wish' : 'wishes'}
-            {!isSignedIn && ' · local'}
-          </p>
-        )}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {APPS.map(({ num, name, slug, icon: Icon, desc, live }) => (
+            <Link
+              key={num}
+              href={slug}
+              aria-disabled={!live}
+              className={`group block bg-[#111] border rounded-xl p-5 space-y-4 transition-all duration-150 ${
+                live
+                  ? 'border-[#333] hover:border-[#555] cursor-pointer'
+                  : 'border-[#1a1a1a] opacity-50 pointer-events-none'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-mono text-[#444]">{num}</span>
+                {live
+                  ? <span className="text-[10px] font-semibold bg-white text-black px-2 py-0.5 rounded-full">LIVE</span>
+                  : <span className="text-[10px] font-mono border border-[#333] text-[#555] px-2 py-0.5 rounded-full">SOON</span>}
+              </div>
+              <div className="flex items-start justify-between">
+                <div className="space-y-1.5">
+                  <div className="p-2 bg-black border border-[#222] rounded-lg w-fit group-hover:border-[#333] transition">
+                    <Icon className="h-4 w-4 text-white" />
+                  </div>
+                  <h2 className="text-sm font-semibold">{name}</h2>
+                </div>
+                {live && <ArrowUpRight className="h-4 w-4 mt-1 text-[#555] transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />}
+              </div>
+              <p className="text-xs text-[#666] leading-relaxed">{desc}</p>
+            </Link>
+          ))}
+        </div>
       </main>
+
+      <footer className="border-t border-[#1a1a1a] py-5 text-center text-xs text-[#333]">
+        Built with Next.js 15
+      </footer>
     </div>
   );
-}
-
-function AuthDashboard() {
-  const { isSignedIn, isLoaded } = useAuth();
-  if (!isLoaded) {
-    return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="w-5 h-5 rounded-full border-2 border-white border-t-transparent animate-spin" />
-      </div>
-    );
-  }
-  return <DashboardContent isSignedIn={!!isSignedIn} />;
-}
-
-export default function Dashboard() {
-  if (!hasClerk) return <DashboardContent isSignedIn={false} />;
-  return <AuthDashboard />;
 }
