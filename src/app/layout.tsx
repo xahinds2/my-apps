@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Geist } from 'next/font/google';
 import { ClerkProvider } from '@clerk/nextjs';
+import { Analytics } from '@vercel/analytics/next';
 import ThemeProvider from '@/components/ThemeProvider';
 import ThemeToggle from '@/components/ThemeToggle';
 import './globals.css';
@@ -25,6 +26,7 @@ export default function RootLayout({
         <ThemeProvider>
           {children}
           <ThemeToggle />
+          <Analytics />
         </ThemeProvider>
       </body>
     </html>
