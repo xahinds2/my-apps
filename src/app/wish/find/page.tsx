@@ -84,6 +84,7 @@ function StoreChip({
   active,
   query,
   clicked,
+  searchMode,
   onFind,
   onSelect,
 }: {
@@ -92,10 +93,32 @@ function StoreChip({
   active: boolean;
   query: string;
   clicked: boolean;
+  searchMode: boolean;
   onFind: () => void;
   onSelect: () => void;
 }) {
   const found = count > 0;
+
+  // Search mode + has products → open store search URL
+  if (searchMode && found) {
+    return (
+      <a
+        href={config.searchUrl(query)}
+        target="_blank"
+        rel="noopener noreferrer"
+        title={`Search "${query}" on ${config.name}`}
+        className={`relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-full border transition-all duration-150
+          ${config.activeClasses} hover:opacity-80`}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={favicon(config.domain)} alt={config.name} className="h-4 w-4 rounded-sm" />
+        <Search className="h-2.5 w-2.5" />
+        <span className="text-[10px] font-semibold px-1 rounded-full bg-white/30 dark:bg-black/30">
+          {count}
+        </span>
+      </a>
+    );
+  }
 
   if (!found) {
     // "Find" state — Search icon → tick after click
@@ -260,6 +283,7 @@ function FindContent() {
   const [loading, setLoading] = useState(true);
   const [activeStore, setActiveStore] = useState<string | null>(null);
   const [clickedStores, setClickedStores] = useState<Set<string>>(new Set());
+  const [searchMode, setSearchMode] = useState(false);
 
   const fetchProducts = useCallback(async (q: string) => {
     setLoading(true);
@@ -342,8 +366,21 @@ function FindContent() {
 
         {/* Store chips */}
         <div className="flex flex-wrap items-center gap-2">
+          {/* Search/Filter mode toggle */}
+          <button
+            onClick={() => setSearchMode(prev => !prev)}
+            title={searchMode ? 'Switch to filter mode' : 'Switch to search mode'}
+            className={`flex items-center justify-center h-7 w-7 rounded-full border transition-all duration-150
+              ${searchMode
+                ? 'bg-violet-600 border-violet-600 text-white'
+                : 'border-[#e0e0e0] dark:border-[#2a2a2a] text-[#aaa] dark:text-[#444] hover:border-[#c0c0c0] dark:hover:border-[#444] hover:text-[#555] dark:hover:text-[#777]'
+              }`}
+          >
+            <Search className="h-3 w-3" />
+          </button>
+
           {/* All chip */}
-          {allProducts.length > 0 && (
+          {!searchMode && allProducts.length > 0 && (
             <button
               onClick={() => setActiveStore(null)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all duration-150
@@ -359,7 +396,7 @@ function FindContent() {
             </button>
           )}
 
-          {STORE_CONFIGS.map(cfg => (
+          {STORE_CONFIGS.filter(cfg => searchMode || (countByStore[cfg.id] || 0) > 0).map(cfg => (
             <StoreChip
               key={cfg.id}
               config={cfg}
@@ -367,6 +404,7 @@ function FindContent() {
               active={activeStore === cfg.id}
               query={query || initial}
               clicked={clickedStores.has(cfg.id)}
+              searchMode={searchMode}
               onFind={() => setClickedStores(prev => new Set(prev).add(cfg.id))}
               onSelect={() => setActiveStore(activeStore === cfg.id ? null : cfg.id)}
             />

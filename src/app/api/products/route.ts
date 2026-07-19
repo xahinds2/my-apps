@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db';
-import Product from '@/models/Product';
+import Product, { IProduct } from '@/models/Product';
 
 // Allow Chrome extension origin
 function corsHeaders() {
@@ -81,7 +81,7 @@ export async function POST(req: NextRequest) {
       }
       return {
         updateOne: {
-          filter: { store: p.store, storeProductId: p.storeProductId },
+          filter: { store: p.store as IProduct['store'], storeProductId: p.storeProductId as string },
           update: { $set: fields },
           upsert: true,
         },
