@@ -2,7 +2,7 @@
 
 import { Suspense, useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { ShoppingBag, Star, ExternalLink, Package, LayoutGrid } from 'lucide-react';
+import { ShoppingBag, Star, ExternalLink, Package } from 'lucide-react';
 import AuthButton from '@/components/AuthButton';
 
 interface Product {
@@ -145,11 +145,6 @@ function ProductsContent() {
               <ShoppingBag className="h-4 w-4 text-violet-400" />
               Wish Me
             </Link>
-            <span className="text-[#ddd] dark:text-[#333]">/</span>
-            <span className="flex items-center gap-1.5 text-sm font-semibold">
-              <LayoutGrid className="h-3.5 w-3.5 text-violet-400" />
-              Explore
-            </span>
           </div>
           <AuthButton />
         </div>

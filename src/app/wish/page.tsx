@@ -178,8 +178,10 @@ function WishPage({ isSignedIn }: { isSignedIn: boolean }) {
       <header className="sticky top-0 z-40 w-full border-b border-[#e0e0e0] dark:border-[#222] bg-white/90 dark:bg-black/90 backdrop-blur-md">
         <div className="max-w-2xl mx-auto px-6 h-14 flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <ShoppingBag className="h-4 w-4 text-violet-400" />
-            <span className="text-sm font-semibold">Wish Me</span>
+            <Link href="/wish" className="flex items-center gap-2 hover:opacity-70 transition">
+              <ShoppingBag className="h-4 w-4 text-violet-400" />
+              <span className="text-sm font-semibold">Wish Me</span>
+            </Link>
           </div>
           <div className="flex items-center gap-3">
             <Link
