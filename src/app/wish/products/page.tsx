@@ -107,33 +107,55 @@ function SkeletonCard() {
   );
 }
 
+const PAGE_SIZE = 48;
+
 function ProductsContent() {
-  const [allProducts, setAllProducts] = useState<Product[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [activeStore, setActiveStore] = useState<string | null>(null);
 
-  const fetchAll = useCallback(async () => {
-    setLoading(true);
+  const fetchPage = useCallback(async (p: number, store: string | null, replace: boolean) => {
+    replace ? setLoading(true) : setLoadingMore(true);
     try {
-      const res = await fetch('/api/products?limit=200');
+      const storeQ = store ? `&store=${store}` : '';
+      const res = await fetch(`/api/products?page=${p}&limit=${PAGE_SIZE}${storeQ}`);
       const json = await res.json();
-      setAllProducts(json.data || []);
+      setProducts(prev => {
+        if (replace) return json.data || [];
+        const existingIds = new Set(prev.map((p: Product) => p._id));
+        const newItems = (json.data || []).filter((p: Product) => !existingIds.has(p._id));
+        return [...prev, ...newItems];
+      });
+      setTotal(json.total || 0);
+      setHasMore(json.hasMore || false);
+      setPage(p);
     } catch {
-      setAllProducts([]);
+      if (replace) setProducts([]);
     } finally {
-      setLoading(false);
+      replace ? setLoading(false) : setLoadingMore(false);
     }
   }, []);
 
-  useEffect(() => { fetchAll(); }, [fetchAll]);
+  useEffect(() => { fetchPage(1, activeStore, true); }, [activeStore, fetchPage]);
 
-  const countByStore = allProducts.reduce<Record<string, number>>((acc, p) => {
-    acc[p.store] = (acc[p.store] || 0) + 1;
-    return acc;
-  }, {});
+  // Store counts from total — need separate count fetch
+  const [storeCounts, setStoreCounts] = useState<Record<string, number>>({});
+  useEffect(() => {
+    // Fetch counts per store (unfiltered)
+    Promise.all(
+      STORE_CONFIGS.map(async cfg => {
+        const res = await fetch(`/api/products?store=${cfg.id}&limit=1`);
+        const json = await res.json();
+        return [cfg.id, json.total || 0] as [string, number];
+      })
+    ).then(pairs => setStoreCounts(Object.fromEntries(pairs)));
+  }, [products]); // refresh when products change
 
-  const displayed = activeStore ? allProducts.filter(p => p.store === activeStore) : allProducts;
-  const storesWithProducts = STORE_CONFIGS.filter(s => countByStore[s.id] > 0);
+  const storesWithProducts = STORE_CONFIGS.filter(s => storeCounts[s.id] > 0);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -159,7 +181,7 @@ function ProductsContent() {
           </div>
           {!loading && (
             <span className="text-[11px] font-mono text-[#bbb] dark:text-[#444] uppercase tracking-widest">
-              {allProducts.length} product{allProducts.length !== 1 ? 's' : ''}
+              {products.length} of {total} product{total !== 1 ? 's' : ''}
             </span>
           )}
         </div>
@@ -176,7 +198,7 @@ function ProductsContent() {
             >
               All
               <span className={`text-[10px] px-1 rounded-full ${activeStore === null ? 'bg-white/20' : 'bg-[#f0f0f0] dark:bg-[#1a1a1a] text-[#888] dark:text-[#555]'}`}>
-                {allProducts.length}
+                {total}
               </span>
             </button>
             {storesWithProducts.map(cfg => (
@@ -192,7 +214,7 @@ function ProductsContent() {
                 <img src={favicon(cfg.domain)} alt={cfg.name} className="h-4 w-4 rounded-sm" />
                 {cfg.name}
                 <span className={`text-[10px] px-1 rounded-full ${activeStore === cfg.id ? 'bg-white/30 dark:bg-black/30' : 'bg-[#f0f0f0] dark:bg-[#1a1a1a] text-[#888] dark:text-[#555]'}`}>
-                  {countByStore[cfg.id]}
+                  {storeCounts[cfg.id]}
                 </span>
               </button>
             ))}
@@ -202,12 +224,34 @@ function ProductsContent() {
         {/* Grid */}
         {loading ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-            {Array.from({ length: 10 }).map((_, i) => <SkeletonCard key={i} />)}
+            {Array.from({ length: PAGE_SIZE }).map((_, i) => <SkeletonCard key={i} />)}
           </div>
-        ) : displayed.length > 0 ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-            {displayed.map(p => <ProductCard key={p._id} product={p} />)}
-          </div>
+        ) : products.length > 0 ? (
+          <>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+              {products.map(p => <ProductCard key={p._id} product={p} />)}
+            </div>
+            {hasMore && (
+              <div className="flex justify-center pt-4">
+                <button
+                  onClick={() => fetchPage(page + 1, activeStore, false)}
+                  disabled={loadingMore}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-[#e0e0e0] dark:border-[#2a2a2a]
+                    text-xs font-semibold text-[#555] dark:text-[#666]
+                    hover:border-[#c0c0c0] dark:hover:border-[#444] hover:text-[#0a0a0a] dark:hover:text-white
+                    disabled:opacity-40 disabled:cursor-not-allowed transition"
+                >
+                  {loadingMore
+                    ? <><span className="w-3 h-3 rounded-full border-2 border-current border-t-transparent animate-spin" />Loading…</>
+                    : `Load more · ${Math.min(PAGE_SIZE, total - products.length)} more`
+                  }
+                </button>
+              </div>
+            )}
+            {!hasMore && total > PAGE_SIZE && (
+              <p className="text-center text-[11px] text-[#bbb] dark:text-[#333]">All {total} products loaded</p>
+            )}
+          </>
         ) : (
           <div className="py-20 flex flex-col items-center gap-3 text-center border border-dashed border-[#e0e0e0] dark:border-[#222] rounded-xl">
             <Package className="h-8 w-8 text-[#ccc] dark:text-[#333]" />

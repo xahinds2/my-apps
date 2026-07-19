@@ -9,12 +9,17 @@
     const asin = card.getAttribute('data-asin');
     if (!asin || asin.length < 5) continue;
 
-    // Title
-    const titleEl =
-      card.querySelector('h2 span.a-text-normal') ||
-      card.querySelector('h2 span') ||
-      card.querySelector('[data-cy="title-recipe"] span');
-    const title = titleEl?.textContent?.trim();
+    // Title — old layout: single `a-text-normal` span; new layout: brand + model
+    // split across two sibling spans inside [data-cy="title-recipe"].
+    // Use innerText on the title container so CSS-separated spans get a space.
+    let title = card.querySelector('h2 span.a-text-normal')?.textContent?.trim();
+    if (!title || title.length < 5) {
+      const titleRecipe = card.querySelector('[data-cy="title-recipe"]') || card.querySelector('h2');
+      title = titleRecipe?.innerText?.trim() || titleRecipe?.textContent?.trim();
+    }
+    if (!title || title.length < 5) continue;
+    // Clean up: strip "Sponsored" label and normalize whitespace/newlines
+    title = title.replace(/^Sponsored\s*/i, '').replace(/\s*\n\s*/g, ' ').trim();
     if (!title || title.length < 5) continue;
 
     // Image
@@ -43,9 +48,9 @@
       image,
       url: `https://www.amazon.in/dp/${asin}`,
       store: 'amazon',
+      storeProductId: asin,
       rating,
       reviews,
-      asin,
     });
   }
 

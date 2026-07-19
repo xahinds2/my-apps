@@ -44,8 +44,11 @@
       if (m) { rating = parseFloat(m[1]); break; }
     }
 
-    // Clean URL (remove query params)
-    const cleanUrl = href.split('?')[0];
+    // Stable URL: extract PID from path /p/{pid} → https://www.flipkart.com/product/p/{pid}
+    const pidMatch = href.match(/\/p\/([a-zA-Z0-9]+)/);
+    if (!pidMatch) continue;
+    const cleanUrl = `https://www.flipkart.com/product/p/${pidMatch[1]}`;
+    const storeProductId = pidMatch[1];
 
     products.push({
       title,
@@ -54,6 +57,7 @@
       image,
       url: cleanUrl,
       store: 'flipkart',
+      storeProductId,
       rating,
       reviews: null,
     });

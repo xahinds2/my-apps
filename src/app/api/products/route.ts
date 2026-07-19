@@ -22,27 +22,30 @@ function isAuthorized(req: NextRequest) {
   return auth === `Bearer ${token}`;
 }
 
-// GET /api/products?q=<query>&limit=20
+// GET /api/products?q=<query>&page=1&limit=48&store=amazon
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const q = searchParams.get('q')?.trim() || '';
-  const limit = Math.min(parseInt(searchParams.get('limit') || '24'), 48);
+  const store = searchParams.get('store')?.trim() || '';
+  const page = Math.max(1, parseInt(searchParams.get('page') || '1'));
+  const limit = Math.max(1, Math.min(parseInt(searchParams.get('limit') || '48'), 200));
+  const skip = (page - 1) * limit;
 
   await connectToDatabase();
 
-  let products;
-  if (q) {
-    products = await Product.find(
-      { title: { $regex: q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' } }
-    )
-      .sort({ updatedAt: -1 })
-      .limit(limit)
-      .lean();
-  } else {
-    products = await Product.find().sort({ updatedAt: -1 }).limit(limit).lean();
-  }
+  const filter: Record<string, unknown> = {};
+  if (q) filter.title = { $regex: q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' };
+  if (store) filter.store = store;
 
-  return NextResponse.json({ data: products }, { headers: corsHeaders() });
+  const [products, total] = await Promise.all([
+    Product.find(filter).sort({ updatedAt: -1 }).skip(skip).limit(limit).lean(),
+    Product.countDocuments(filter),
+  ]);
+
+  return NextResponse.json(
+    { data: products, total, page, limit, hasMore: skip + products.length < total },
+    { headers: corsHeaders() }
+  );
 }
 
 // POST /api/products — upsert one or many products from the extension
@@ -63,22 +66,41 @@ export async function POST(req: NextRequest) {
   await connectToDatabase();
 
   const ops = items
-    .filter((p): p is Record<string, unknown> => typeof p === 'object' && p !== null && typeof (p as Record<string, unknown>).url === 'string' && typeof (p as Record<string, unknown>).title === 'string')
-    .map(p => ({
-      updateOne: {
-        filter: { url: p.url },
-        update: { $set: { ...p, updatedAt: new Date() } },
-        upsert: true,
-      },
-    }));
+    .filter((p): p is Record<string, unknown> =>
+      typeof p === 'object' && p !== null &&
+      typeof (p as Record<string, unknown>).url === 'string' &&
+      typeof (p as Record<string, unknown>).title === 'string' &&
+      typeof (p as Record<string, unknown>).store === 'string' &&
+      typeof (p as Record<string, unknown>).storeProductId === 'string'
+    )
+    .map(p => {
+      // Only $set fields that are actually provided — never overwrite with null
+      const fields: Record<string, unknown> = { updatedAt: new Date() };
+      for (const [k, v] of Object.entries(p)) {
+        if (v !== null && v !== undefined) fields[k] = v;
+      }
+      return {
+        updateOne: {
+          filter: { store: p.store, storeProductId: p.storeProductId },
+          update: { $set: fields },
+          upsert: true,
+        },
+      };
+    });
 
   if (ops.length === 0) {
     return NextResponse.json({ saved: 0 }, { headers: corsHeaders() });
   }
 
-  const result = await Product.bulkWrite(ops);
-  return NextResponse.json(
-    { saved: result.upsertedCount + result.modifiedCount },
-    { headers: corsHeaders() }
-  );
+  try {
+    const result = await Product.bulkWrite(ops);
+    return NextResponse.json(
+      { saved: result.upsertedCount + result.modifiedCount },
+      { headers: corsHeaders() }
+    );
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('[products POST]', msg);
+    return NextResponse.json({ error: msg }, { status: 500, headers: corsHeaders() });
+  }
 }

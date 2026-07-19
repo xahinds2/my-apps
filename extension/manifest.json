@@ -3,10 +3,13 @@
   "name": "Wish Me Scraper",
   "version": "1.0",
   "description": "Scrapes Amazon & Flipkart search results into your Wish Me product database.",
-  "permissions": ["storage"],
+  "permissions": ["storage", "tabs"],
   "host_permissions": [
     "https://www.amazon.in/*",
     "https://www.flipkart.com/*",
+    "https://www.myntra.com/*",
+    "https://www.nykaa.com/*",
+    "https://www.croma.com/*",
     "http://localhost:3000/*",
     "https://*.vercel.app/*"
   ],
@@ -27,6 +30,28 @@
         "https://www.flipkart.com/search*"
       ],
       "js": ["content-flipkart.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://www.myntra.com/*"
+      ],
+      "js": ["content-myntra.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://www.nykaa.com/search/*",
+        "https://www.nykaa.com/*/c/*"
+      ],
+      "js": ["content-nykaa.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://www.croma.com/searchB*"
+      ],
+      "js": ["content-croma.js"],
       "run_at": "document_idle"
     }
   ],
