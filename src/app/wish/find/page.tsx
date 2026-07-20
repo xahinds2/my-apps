@@ -93,54 +93,39 @@ function StoreChip({
 }) {
   const found = count > 0;
 
-  // Search mode + has products → open store search URL
-  if (searchMode && found) {
+  // Link: no products (find) or search mode with products (open store search)
+  if (!found || searchMode) {
     return (
       <a
         href={config.searchUrl(query)}
         target="_blank"
         rel="noopener noreferrer"
-        title={`Search "${query}" on ${config.name}`}
-        className={`relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-full border transition-all duration-150
-          ${config.activeClasses} hover:opacity-80`}
-      >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={favicon(config.domain)} alt={config.name} className="h-4 w-4 rounded-sm" />
-        <Search className="h-2.5 w-2.5" />
-        <span className="text-[10px] font-semibold px-1 rounded-full bg-white/30 dark:bg-black/30">
-          {count}
-        </span>
-      </a>
-    );
-  }
-
-  if (!found) {
-    // "Find" state — Search icon → tick after click
-    return (
-      <a
-        href={config.searchUrl(query)}
-        target="_blank"
-        rel="noopener noreferrer"
-        title={clicked ? `Opened ${config.name} — browse to save products` : `Search "${query}" on ${config.name}`}
-        onClick={onFind}
-        className={`relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-full
-          border transition-all duration-200
-          ${ clicked
+        title={!found && clicked
+          ? `Opened ${config.name} — browse to save products`
+          : `Search "${query}" on ${config.name}`}
+        onClick={!found ? onFind : undefined}
+        className={`relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-full border transition-all duration-150 hover:opacity-80
+          ${!found && clicked
             ? 'border-green-400 dark:border-green-500/50 bg-green-50 dark:bg-green-500/10'
-            : 'border-dashed border-[#d4d4d4] dark:border-[#333] opacity-50 hover:opacity-80 hover:border-[#aaa] dark:hover:border-[#555]'
+            : config.activeClasses
           }`}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={favicon(config.domain)} alt={config.name} className="h-4 w-4 rounded-sm" />
-        {clicked
+        {!found && clicked
           ? <Check className="h-2.5 w-2.5 text-green-500 dark:text-green-400" />
-          : <Search className="h-2.5 w-2.5 text-[#aaa] dark:text-[#555]" />
+          : <Search className={`h-2.5 w-2.5 ${config.iconColor}`} />
         }
+        {found && (
+          <span className="text-[10px] font-semibold px-1 rounded-full bg-white/30 dark:bg-black/30">
+            {count}
+          </span>
+        )}
       </a>
     );
   }
 
-  // "Found" state — filters the grid
+  // Filter button: has products, filter mode
   return (
     <button
       onClick={onSelect}
@@ -352,20 +337,24 @@ function FindContent() {
     fetchProducts(q, null, 1);
   };
 
-  const displayed = allProducts;
   const metaTotal = Object.values(storeCounts).reduce((a, b) => a + b, 0);
+
+  // Auto-activate search mode when no products are available
+  useEffect(() => {
+    if (!loading && lastQuery && metaTotal === 0) {
+      setSearchMode(true);
+    }
+  }, [loading, lastQuery, metaTotal]);
 
   return (
     <div className="min-h-screen flex flex-col">
       {/* Header */}
       <header className="sticky top-0 z-40 w-full border-b border-[#e0e0e0] dark:border-[#222] bg-white/90 dark:bg-black/90 backdrop-blur-md">
         <div className="max-w-4xl mx-auto px-6 h-14 flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <Link href="/wish" className="flex items-center gap-2 hover:opacity-70 transition">
-              <ShoppingBag className="h-4 w-4 text-violet-400" />
-              <span className="text-sm font-semibold">Wish Me</span>
-            </Link>
-          </div>
+          <Link href="/wish" className="flex items-center gap-2 hover:opacity-70 transition">
+            <ShoppingBag className="h-4 w-4 text-violet-400" />
+            <span className="text-sm font-semibold">Wish Me</span>
+          </Link>
           <AuthButton />
         </div>
       </header>
@@ -433,13 +422,13 @@ function FindContent() {
             </button>
           )}
 
-          {STORE_CONFIGS.filter(cfg => searchMode || (storeCounts[cfg.id] || 0) > 0).map(cfg => (
+          {STORE_CONFIGS.filter(cfg => !!lastQuery || (storeCounts[cfg.id] || 0) > 0).map(cfg => (
             <StoreChip
               key={cfg.id}
               config={cfg}
               count={storeCounts[cfg.id] || 0}
               active={activeStore === cfg.id}
-              query={query || initial}
+              query={lastQuery}
               clicked={clickedStores.has(cfg.id)}
               searchMode={searchMode}
               onFind={() => setClickedStores(prev => new Set(prev).add(cfg.id))}
@@ -453,16 +442,16 @@ function FindContent() {
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
             {Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} />)}
           </div>
-        ) : displayed.length > 0 ? (
+        ) : allProducts.length > 0 ? (
           <div className="space-y-3">
             <p className="text-[11px] font-mono text-[#aaa] dark:text-[#444] uppercase tracking-widest">
               {activeStore
-                ? `${displayed.length} of ${total} result${total !== 1 ? 's' : ''} · ${STORE_CONFIGS.find(s => s.id === activeStore)?.name}`
-                : `${displayed.length} of ${total} result${total !== 1 ? 's' : ''} · all stores`
+                ? `${allProducts.length} of ${total} result${total !== 1 ? 's' : ''} · ${STORE_CONFIGS.find(s => s.id === activeStore)?.name}`
+                : `${allProducts.length} of ${total} result${total !== 1 ? 's' : ''} · all stores`
               }
             </p>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-              {displayed.map(p => <ProductCard key={p._id} product={p} />)}
+              {allProducts.map(p => <ProductCard key={p._id} product={p} />)}
             </div>
             {hasMore && (
               <div className="flex justify-center pt-4">
@@ -474,12 +463,12 @@ function FindContent() {
                   {loadingMore && (
                     <span className="w-3.5 h-3.5 rounded-full border-2 border-white border-t-transparent animate-spin" />
                   )}
-                  {loadingMore ? 'Loading…' : `Load more`}
+                  {loadingMore ? 'Loading…' : 'Load more'}
                 </button>
               </div>
             )}
           </div>
-        ) : allProducts.length === 0 ? (
+        ) : (
           <div className="py-14 flex flex-col items-center gap-3 text-center border border-dashed border-[#e0e0e0] dark:border-[#222] rounded-xl">
             <Package className="h-8 w-8 text-[#ccc] dark:text-[#333]" />
             <div>
@@ -490,7 +479,7 @@ function FindContent() {
               </p>
             </div>
           </div>
-        ) : null}
+        )}
       </main>
     </div>
   );

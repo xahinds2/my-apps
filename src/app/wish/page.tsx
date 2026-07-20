@@ -97,6 +97,58 @@ function computeLow6m(history?: PriceHistoryEntry[]) {
   return recent.reduce((min, h) => (h.price < min.price ? h : min), recent[0]);
 }
 
+/* ─── Price metadata sub-component ──────────────────────────── */
+
+function PriceMeta({ pd }: { pd?: PriceData }) {
+  if (!pd) return null;
+  if (pd.loading) return (
+    <div className="mt-2 flex gap-2">
+      <div className="h-2.5 w-16 bg-[#ebebeb] dark:bg-[#1a1a1a] rounded animate-pulse" />
+      <div className="h-2.5 w-20 bg-[#ebebeb] dark:bg-[#1a1a1a] rounded animate-pulse" />
+    </div>
+  );
+  const hasPrice = !!pd.latestPrice;
+  const showLow = hasPrice && pd.lowestPrice6m != null && pd.lowestPrice6m < pd.latestPrice!;
+  const showAlts = !hasPrice && (pd.alternatives?.length ?? 0) > 0;
+  return (
+    <div className="mt-1.5 space-y-1">
+      {hasPrice && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
+          <span className="text-[11px] font-medium text-[#333] dark:text-[#ccc]">
+            {formatPrice(pd.latestPrice!, pd.currency)}
+            <span className="font-normal text-[#999] dark:text-[#555]"> · {capitalizeStore(pd.latestStore)}</span>
+          </span>
+          {showLow && (
+            <span className="text-[11px] text-emerald-600 dark:text-emerald-500 flex items-center gap-1">
+              <TrendingDown className="h-2.5 w-2.5" />
+              6m low {formatPrice(pd.lowestPrice6m!, pd.currency)} · {capitalizeStore(pd.lowestStore6m)}
+            </span>
+          )}
+          {pd.productCount !== undefined && (
+            <span className="text-[11px] text-[#bbb] dark:text-[#444]">{pd.productCount} {pd.productCount === 1 ? 'match' : 'matches'}</span>
+          )}
+        </div>
+      )}
+      {showAlts && (
+        <div className="space-y-0.5">
+          <p className="text-[11px] text-[#bbb] dark:text-[#444]">Not found · similar items:</p>
+          {pd.alternatives!.slice(0, 3).map((alt, i) => (
+            <a key={i} href={alt.url} target="_blank" rel="noopener noreferrer"
+              className="flex items-center gap-1 text-[11px] text-[#888] dark:text-[#555] hover:text-[#0a0a0a] dark:hover:text-white transition">
+              <ArrowRight className="h-2.5 w-2.5 shrink-0" />
+              <span className="truncate">{alt.title}</span>
+              <span className="shrink-0 text-[#bbb] dark:text-[#444]">· {formatPrice(alt.price)} · {capitalizeStore(alt.store)}</span>
+            </a>
+          ))}
+        </div>
+      )}
+      {!hasPrice && !showAlts && (
+        <p className="text-[11px] text-[#bbb] dark:text-[#444]">Not found in database yet</p>
+      )}
+    </div>
+  );
+}
+
 function loadStorage(): Wish[] {
   if (typeof window === 'undefined') return [];
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch { return []; }
@@ -137,34 +189,39 @@ function WishPage({ isSignedIn }: { isSignedIn: boolean }) {
     const id = getId(wish);
     setPriceData(prev => ({ ...prev, [id]: { loading: true } }));
     try {
-      if (isSignedIn && id && !id.startsWith('local-')) {
-        const snap = wish.priceSnapshot;
-        const isStale = !snap?.checkedAt || Date.now() - new Date(snap.checkedAt).getTime() > 3_600_000;
-        if (!isStale && snap?.latestPrice) {
-          const low = computeLow6m(wish.priceHistory);
-          setPriceData(prev => ({
-            ...prev,
-            [id]: {
-              loading: false,
-              latestPrice: snap.latestPrice,
-              latestStore: snap.latestStore,
-              currency: snap.currency,
-              productCount: snap.productCount,
-              lowestPrice6m: low?.price ?? null,
-              lowestStore6m: low?.store ?? null,
-              lowestDate6m: low?.date ?? null,
-            },
-          }));
-          return;
-        }
-        const res = await fetch(`/api/wishes/${id}/snapshot`, { method: 'POST' });
-        const json = await res.json();
-        setPriceData(prev => ({ ...prev, [id]: { loading: false, ...json } }));
-      } else {
+      // Unauthenticated or local wish → stateless summary API
+      if (!isSignedIn || !id || id.startsWith('local-')) {
         const res = await fetch(`/api/products/summary?q=${encodeURIComponent(wish.text)}`);
         const json = await res.json();
         setPriceData(prev => ({ ...prev, [id]: { loading: false, ...json } }));
+        return;
       }
+
+      // Signed-in: use cached snapshot if fresh and has a price
+      const snap = wish.priceSnapshot;
+      const age = snap?.checkedAt ? Date.now() - new Date(snap.checkedAt).getTime() : Infinity;
+      if (age < 3_600_000 && snap?.latestPrice) {
+        const low = computeLow6m(wish.priceHistory);
+        setPriceData(prev => ({
+          ...prev,
+          [id]: {
+            loading: false,
+            latestPrice: snap.latestPrice,
+            latestStore: snap.latestStore,
+            currency: snap.currency,
+            productCount: snap.productCount,
+            lowestPrice6m: low?.price ?? null,
+            lowestStore6m: low?.store ?? null,
+            lowestDate6m: low?.date ?? null,
+          },
+        }));
+        return;
+      }
+
+      // Stale or no snapshot → fetch fresh from server
+      const res = await fetch(`/api/wishes/${id}/snapshot`, { method: 'POST' });
+      const json = await res.json();
+      setPriceData(prev => ({ ...prev, [id]: { loading: false, ...json } }));
     } catch {
       setPriceData(prev => ({ ...prev, [id]: { loading: false } }));
     }
@@ -273,12 +330,10 @@ function WishPage({ isSignedIn }: { isSignedIn: boolean }) {
       {/* Header */}
       <header className="sticky top-0 z-40 w-full border-b border-[#e0e0e0] dark:border-[#222] bg-white/90 dark:bg-black/90 backdrop-blur-md">
         <div className="max-w-2xl mx-auto px-6 h-14 flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <Link href="/wish" className="flex items-center gap-2 hover:opacity-70 transition">
-              <ShoppingBag className="h-4 w-4 text-violet-400" />
-              <span className="text-sm font-semibold">Wish Me</span>
-            </Link>
-          </div>
+          <Link href="/wish" className="flex items-center gap-2 hover:opacity-70 transition">
+            <ShoppingBag className="h-4 w-4 text-violet-400" />
+            <span className="text-sm font-semibold">Wish Me</span>
+          </Link>
           <div className="flex items-center gap-3">
             <Link
               href="/wish/explore"
@@ -379,57 +434,7 @@ function WishPage({ isSignedIn }: { isSignedIn: boolean }) {
                           <button onClick={() => deleteWish(wish)} className="p-1.5 text-[#bbb] hover:text-red-500 dark:text-[#444] dark:hover:text-red-400 rounded transition"><Trash2 className="h-3.5 w-3.5" /></button>
                         </div>
                       </div>
-                      {/* Price metadata */}
-                      {(() => {
-                        const pd = priceData[id];
-                        if (!pd) return null;
-                        if (pd.loading) return (
-                          <div className="mt-2 flex gap-2">
-                            <div className="h-2.5 w-16 bg-[#ebebeb] dark:bg-[#1a1a1a] rounded animate-pulse" />
-                            <div className="h-2.5 w-20 bg-[#ebebeb] dark:bg-[#1a1a1a] rounded animate-pulse" />
-                          </div>
-                        );
-                        const hasPrice = !!pd.latestPrice;
-                        const showLow = pd.lowestPrice6m && hasPrice && pd.lowestPrice6m < pd.latestPrice!;
-                        const showAlts = !hasPrice && (pd.alternatives?.length ?? 0) > 0;
-                        return (
-                          <div className="mt-1.5 space-y-1">
-                            {hasPrice && (
-                              <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
-                                <span className="text-[11px] font-medium text-[#333] dark:text-[#ccc]">
-                                  {formatPrice(pd.latestPrice!, pd.currency)}
-                                  <span className="font-normal text-[#999] dark:text-[#555]"> · {capitalizeStore(pd.latestStore)}</span>
-                                </span>
-                                {showLow && (
-                                  <span className="text-[11px] text-emerald-600 dark:text-emerald-500 flex items-center gap-1">
-                                    <TrendingDown className="h-2.5 w-2.5" />
-                                    6m low {formatPrice(pd.lowestPrice6m!, pd.currency)} · {capitalizeStore(pd.lowestStore6m)}
-                                  </span>
-                                )}
-                                {pd.productCount !== undefined && (
-                                  <span className="text-[11px] text-[#bbb] dark:text-[#444]">{pd.productCount} {pd.productCount === 1 ? 'match' : 'matches'}</span>
-                                )}
-                              </div>
-                            )}
-                            {showAlts && (
-                              <div className="space-y-0.5">
-                                <p className="text-[11px] text-[#bbb] dark:text-[#444]">Not found · similar items:</p>
-                                {pd.alternatives!.slice(0, 3).map((alt, i) => (
-                                  <a key={i} href={alt.url} target="_blank" rel="noopener noreferrer"
-                                    className="flex items-center gap-1 text-[11px] text-[#888] dark:text-[#555] hover:text-[#0a0a0a] dark:hover:text-white transition">
-                                    <ArrowRight className="h-2.5 w-2.5 shrink-0" />
-                                    <span className="truncate">{alt.title}</span>
-                                    <span className="shrink-0 text-[#bbb] dark:text-[#444]">· {formatPrice(alt.price)} · {capitalizeStore(alt.store)}</span>
-                                  </a>
-                                ))}
-                              </div>
-                            )}
-                            {!hasPrice && !showAlts && (
-                              <p className="text-[11px] text-[#bbb] dark:text-[#444]">Not found in database yet</p>
-                            )}
-                          </div>
-                        );
-                      })()}
+                      <PriceMeta pd={priceData[id]} />
                     </div>
                   )}
                 </li>

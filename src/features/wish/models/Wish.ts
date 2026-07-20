@@ -23,7 +23,7 @@ export interface IWish extends Document {
 }
 
 const WishSchema: Schema = new Schema({
-  userId: { type: String, required: true, index: true },
+  userId: { type: String, required: true },
   text: { type: String, required: true, trim: true },
   createdAt: { type: Date, default: Date.now },
   priceSnapshot: {
@@ -39,5 +39,13 @@ const WishSchema: Schema = new Schema({
     date: { type: Date, default: Date.now },
   }],
 });
+
+// List render: fetch a user's wishes newest-first without an in-memory sort.
+WishSchema.index({ userId: 1, createdAt: -1 });
+
+// In development, drop the cached model so schema changes are picked up on hot reload.
+if (process.env.NODE_ENV === 'development') {
+  delete (mongoose.models as Record<string, unknown>).Wish;
+}
 
 export default mongoose.models.Wish || mongoose.model<IWish>('Wish', WishSchema);

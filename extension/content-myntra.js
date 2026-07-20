@@ -1,80 +1,68 @@
-// Myntra search results scraper
-// Covers: https://www.myntra.com/<search-term>
+// Myntra search results scraper.
 
 (async () => {
   const U = window.WishMeScraperUtils;
   if (!U) return;
 
+  const SELECTORS = {
+    card: "li.product-base",
+    link: "a[href*=\"/buy\"]",
+    brand: ["h3.product-brand"],
+    name: ["h4.product-product"],
+    image: { selectors: ["img.img-responsive", "img"], attrs: ["src", "data-src", "srcset"] },
+    price: [".product-price"],
+  };
+
+  const urlParams = new URLSearchParams(window.location.search);
+  const searchQuery = urlParams.get("rawQuery") || "";
+  const jsonLd = U.extractJsonLdProducts();
+
+  const cards = document.querySelectorAll(SELECTORS.card);
   const products = [];
   let droppedLowConfidence = 0;
 
-  // Page-level metadata — Myntra URLs: myntra.com/<category>/...
-  const pathParts = window.location.pathname.split('/').filter(Boolean);
-  const pageCategory = (pathParts[0] || '').toLowerCase().replace(/-/g, ' ') || null;
-  const productType = pageCategory;
-  const pageKeywords = U.buildPageKeywords([pageCategory, ...U.extractMetaKeywords().slice(0, 10)]);
-
-  const cards = document.querySelectorAll('li.product-base');
-
   for (const card of cards) {
-    const linkEl = card.querySelector('a[href*="/buy"]');
+    const linkEl = card.querySelector(SELECTORS.link);
     if (!linkEl) continue;
-
-    // Stable URL: extract numeric product ID from .../43555584/buy
     const pidMatch = linkEl.href.match(/(\d+)\/buy/);
     if (!pidMatch) continue;
     const storeProductId = pidMatch[1];
-    const url = `https://www.myntra.com/product/${storeProductId}`;
 
-    // Brand (h3.product-brand) + product name (h4.product-product)
-    const brand = U.pickText(card, ['h3.product-brand']) || null;
-    const name  = U.pickText(card, ['h4.product-product']) || '';
-    const title = U.normalizeWhitespace([brand, name].filter(Boolean).join(' '));
+    const brand = U.pickText(card, SELECTORS.brand) || null;
+    const name = U.pickText(card, SELECTORS.name) || "";
+    const title = U.normalizeWhitespace([brand, name].filter(Boolean).join(" "));
     if (!title || title.length < 4) continue;
 
-    // Image
-    const imgEl = card.querySelector('img.img-responsive') || card.querySelector('img');
-    const image = imgEl?.src || null;
-
-    // Price — class is "product-price"; text may be "Rs. 29900Rs. 45900(Rs. 16000 OFF)"
-    // Extract the first number (discounted / selling price)
-    const priceText = card.querySelector('.product-price')?.textContent || '';
+    const priceText = card.querySelector(SELECTORS.price[0])?.textContent || "";
     const firstNumber = (priceText.match(/[\d,]+/) || [null])[0];
-    const price = U.parsePrice(firstNumber);
 
-    const product = {
+    let product = {
       title,
-      price,
-      currency: 'INR',
-      image,
-      url,
-      store: 'myntra',
+      price: U.parsePrice(firstNumber) ?? U.findPriceNear(card),
+      currency: "INR",
+      image: U.pickImage(card, SELECTORS.image),
+      url: linkEl.href.split("?")[0],
+      store: "myntra",
       storeProductId,
-      brand: brand || null,
-      category: pageCategory,
-      productType,
-      keywords: pageKeywords.length ? pageKeywords : null,
+      brand,
       rating: null,
       reviews: null,
     };
 
-    if (U.scoreProduct(product) < 5) {
-      droppedLowConfidence += 1;
-      continue;
-    }
+    product = U.enrichFromJsonLd(product, jsonLd);
 
+    if (U.scoreProduct(product) < 5) { droppedLowConfidence += 1; continue; }
     products.push(product);
   }
 
   if (products.length === 0) return;
 
-  const cardsFound = cards.length;
-  const drift = U.buildDriftMeta('myntra', window.location.href, cardsFound, products.length, droppedLowConfidence);
-
+  const drift = U.buildDriftMeta("myntra", window.location.href, cards.length, products.length, droppedLowConfidence);
   chrome.runtime.sendMessage({
-    type: 'SAVE_PRODUCTS',
+    type: "SAVE_PRODUCTS",
     products,
-    source: window.location.href,
+    source: { query: searchQuery, pageUrl: window.location.href },
+    schemaVersion: 2,
     diagnostics: drift,
   });
 })();

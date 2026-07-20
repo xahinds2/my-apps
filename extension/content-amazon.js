@@ -1,88 +1,67 @@
-// Amazon.in search results scraper
-// Selectors may need updating if Amazon changes their HTML structure
+// Amazon.in search results scraper.
+// All CSS selectors live in SELECTORS so a drift fix is a one-line edit.
 
 (async () => {
   const U = window.WishMeScraperUtils;
   if (!U) return;
 
-  const cards = document.querySelectorAll('[data-asin]:not([data-asin=""])');
+  const SELECTORS = {
+    card: "[data-asin]:not([data-asin=\"\"])",
+    title: ["h2 span.a-text-normal", "[data-cy=\"title-recipe\"]", "h2"],
+    image: { selectors: ["img.s-image", "img"], attrs: ["src", "data-src", "srcset"] },
+    price: [".a-price-whole", ".a-price .a-offscreen"],
+    rating: ["span.a-icon-alt"],
+    reviews: ["span.a-size-base.s-underline-text"],
+  };
+
+  const urlParams = new URLSearchParams(window.location.search);
+  const searchQuery = urlParams.get("k") || "";
+  const jsonLd = U.extractJsonLdProducts();
+
+  const cards = document.querySelectorAll(SELECTORS.card);
   const products = [];
   let droppedLowConfidence = 0;
 
-  // Page-level metadata
-  const urlParams = new URLSearchParams(window.location.search);
-  const searchQuery = urlParams.get('k') || '';
-  const categoryParam = urlParams.get('i') || '';
-  const breadcrumbEl = document.querySelector('#wayfinding-breadcrumbs_feature_div');
-  const breadcrumbText = U.normalizeWhitespace(breadcrumbEl?.innerText || '').split('›')[0].trim();
-  const pageCategory = (breadcrumbText || categoryParam).toLowerCase() || null;
-  const productType = searchQuery.trim().toLowerCase() || null;
-  const pageKeywords = U.buildPageKeywords([searchQuery, pageCategory, ...U.extractMetaKeywords().slice(0, 10)]);
-
   for (const card of cards) {
-    const asin = card.getAttribute('data-asin');
+    const asin = card.getAttribute("data-asin");
     if (!asin || asin.length < 5) continue;
 
-    // Title — old layout: single `a-text-normal` span; new layout: brand + model
-    // split across two sibling spans inside [data-cy="title-recipe"].
-    // Use innerText on the title container so CSS-separated spans get a space.
-    let title = U.pickText(card, ['h2 span.a-text-normal']);
+    let title = U.pickText(card, [SELECTORS.title[0]]);
     if (!title || title.length < 5) {
-      const titleRecipe = card.querySelector('[data-cy="title-recipe"]') || card.querySelector('h2');
-      title = U.normalizeWhitespace(titleRecipe?.innerText || titleRecipe?.textContent || '');
+      const recipe = card.querySelector(SELECTORS.title[1]) || card.querySelector(SELECTORS.title[2]);
+      title = U.normalizeWhitespace(recipe?.innerText || recipe?.textContent || "");
     }
     if (!title || title.length < 5) continue;
-    // Clean up: strip "Sponsored" label and normalize whitespace/newlines
-    title = U.normalizeWhitespace(title.replace(/^Sponsored\s*/i, '').replace(/\s*\n\s*/g, ' '));
+    title = U.normalizeWhitespace(title.replace(/^Sponsored\s*/i, "").replace(/\s*\n\s*/g, " "));
     if (!title || title.length < 5) continue;
 
-    // Image
-    const imgEl = card.querySelector('img.s-image');
-    const image = imgEl?.getAttribute('src') || null;
-
-    // Price (whole part, e.g. "82,900")
-    const priceEl = card.querySelector('.a-price-whole');
-    const price = U.parsePrice(priceEl?.textContent);
-
-    // Rating (e.g. "4.5 out of 5 stars")
-    const ratingEl = card.querySelector('span.a-icon-alt');
-    const rating = U.parseRating(ratingEl?.textContent);
-
-    // Reviews count
-    const reviewsEl = card.querySelector('span.a-size-base.s-underline-text');
-    const reviews = U.parseReviews(reviewsEl?.textContent);
-
-    const product = {
+    let product = {
       title,
-      price,
-      currency: 'INR',
-      image,
+      price: U.parsePrice(U.pickText(card, SELECTORS.price)) ?? U.findPriceNear(card),
+      currency: "INR",
+      image: U.pickImage(card, SELECTORS.image),
       url: `https://www.amazon.in/dp/${asin}`,
-      store: 'amazon',
+      store: "amazon",
       storeProductId: asin,
-      category: pageCategory,
-      productType,
-      keywords: pageKeywords.length ? pageKeywords : null,
-      rating,
-      reviews,
+      brand: null,
+      rating: U.parseRating(U.pickText(card, SELECTORS.rating)),
+      reviews: U.parseReviews(U.pickText(card, SELECTORS.reviews)),
     };
 
-    if (U.scoreProduct(product) < 5) {
-      droppedLowConfidence += 1;
-      continue;
-    }
+    product = U.enrichFromJsonLd(product, jsonLd);
 
+    if (U.scoreProduct(product) < 5) { droppedLowConfidence += 1; continue; }
     products.push(product);
   }
 
   if (products.length === 0) return;
 
-  const drift = U.buildDriftMeta('amazon', window.location.href, cards.length, products.length, droppedLowConfidence);
-
+  const drift = U.buildDriftMeta("amazon", window.location.href, cards.length, products.length, droppedLowConfidence);
   chrome.runtime.sendMessage({
-    type: 'SAVE_PRODUCTS',
+    type: "SAVE_PRODUCTS",
     products,
-    source: window.location.href,
+    source: { query: searchQuery, pageUrl: window.location.href },
+    schemaVersion: 2,
     diagnostics: drift,
   });
 })();

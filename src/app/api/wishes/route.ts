@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db';
 import { getAuthUser } from '@/lib/authHelper';
-import Wish from '@/models/Wish';
+import Wish from '@/features/wish/models/Wish';
 
 export async function GET() {
   try {
