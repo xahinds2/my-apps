@@ -5,7 +5,7 @@
   if (!U) return;
 
   const SELECTORS = {
-    link: "a[href*="/p/"]",
+    link: 'a[href*="/p/"]',
     title: ["h2"],
     image: { selectors: ["img"], attrs: ["src", "data-src", "srcset"] },
   };

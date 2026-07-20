@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@clerk/nextjs';
 import AuthButton from '@/components/AuthButton';
-import { Plus, Trash2, Search, ShoppingBag, ArrowRight, Pencil, Check, X, LayoutGrid, TrendingDown } from 'lucide-react';
+import { Plus, Trash2, Search, ShoppingBag, ArrowRight, Pencil, Check, X, LayoutGrid } from 'lucide-react';
 
 interface PriceHistoryEntry {
   price: number;
@@ -18,9 +18,6 @@ interface PriceData {
   latestStore?: string;
   currency?: string;
   productCount?: number;
-  lowestPrice6m?: number | null;
-  lowestStore6m?: string | null;
-  lowestDate6m?: string | null;
   alternatives?: { title: string; price: number; store: string; url: string; image: string }[];
 }
 
@@ -89,14 +86,6 @@ function capitalizeStore(store?: string | null) {
   return store.charAt(0).toUpperCase() + store.slice(1);
 }
 
-function computeLow6m(history?: PriceHistoryEntry[]) {
-  if (!history?.length) return null;
-  const cutoff = Date.now() - 180 * 24 * 60 * 60 * 1000;
-  const recent = history.filter(h => new Date(h.date).getTime() >= cutoff);
-  if (!recent.length) return null;
-  return recent.reduce((min, h) => (h.price < min.price ? h : min), recent[0]);
-}
-
 /* ─── Price metadata sub-component ──────────────────────────── */
 
 function PriceMeta({ pd }: { pd?: PriceData }) {
@@ -108,7 +97,6 @@ function PriceMeta({ pd }: { pd?: PriceData }) {
     </div>
   );
   const hasPrice = !!pd.latestPrice;
-  const showLow = hasPrice && pd.lowestPrice6m != null && pd.lowestPrice6m < pd.latestPrice!;
   const showAlts = !hasPrice && (pd.alternatives?.length ?? 0) > 0;
   return (
     <div className="mt-1.5 space-y-1">
@@ -118,12 +106,6 @@ function PriceMeta({ pd }: { pd?: PriceData }) {
             {formatPrice(pd.latestPrice!, pd.currency)}
             <span className="font-normal text-[#999] dark:text-[#555]"> · {capitalizeStore(pd.latestStore)}</span>
           </span>
-          {showLow && (
-            <span className="text-[11px] text-emerald-600 dark:text-emerald-500 flex items-center gap-1">
-              <TrendingDown className="h-2.5 w-2.5" />
-              6m low {formatPrice(pd.lowestPrice6m!, pd.currency)} · {capitalizeStore(pd.lowestStore6m)}
-            </span>
-          )}
           {pd.productCount !== undefined && (
             <span className="text-[11px] text-[#bbb] dark:text-[#444]">{pd.productCount} {pd.productCount === 1 ? 'match' : 'matches'}</span>
           )}
@@ -201,7 +183,6 @@ function WishPage({ isSignedIn }: { isSignedIn: boolean }) {
       const snap = wish.priceSnapshot;
       const age = snap?.checkedAt ? Date.now() - new Date(snap.checkedAt).getTime() : Infinity;
       if (age < 3_600_000 && snap?.latestPrice) {
-        const low = computeLow6m(wish.priceHistory);
         setPriceData(prev => ({
           ...prev,
           [id]: {
@@ -210,9 +191,6 @@ function WishPage({ isSignedIn }: { isSignedIn: boolean }) {
             latestStore: snap.latestStore,
             currency: snap.currency,
             productCount: snap.productCount,
-            lowestPrice6m: low?.price ?? null,
-            lowestStore6m: low?.store ?? null,
-            lowestDate6m: low?.date ?? null,
           },
         }));
         return;

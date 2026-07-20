@@ -107,6 +107,8 @@ function StoreChip({
         className={`relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-full border transition-all duration-150 hover:opacity-80
           ${!found && clicked
             ? 'border-green-400 dark:border-green-500/50 bg-green-50 dark:bg-green-500/10'
+            : !found
+            ? 'border-[#e0e0e0] dark:border-[#2a2a2a] opacity-40 grayscale'
             : config.activeClasses
           }`}
       >
