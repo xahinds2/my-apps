@@ -4,39 +4,30 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@clerk/nextjs';
 import AuthButton from '@/components/AuthButton';
-import { Plus, Trash2, Search, ShoppingBag, ArrowRight, Pencil, Check, X, LayoutGrid } from 'lucide-react';
+import { Plus, Trash2, ShoppingBag, Package, ChevronRight, Check } from 'lucide-react';
 
-interface PriceHistoryEntry {
-  price: number;
-  store: string;
-  date: string;
-}
+/* ─── Types ──────────────────────────────────────────────────── */
 
-interface PriceData {
-  loading: boolean;
-  latestPrice?: number;
-  latestStore?: string;
-  currency?: string;
-  productCount?: number;
-  alternatives?: { title: string; price: number; store: string; url: string; image: string }[];
+interface WishLink {
+  url: string;
+  label?: string;
 }
 
 interface Wish {
   _id?: string;
   id?: string;
   text: string;
+  links: WishLink[];
+  image?: string;
+  budget?: string;
+  status?: 'pending' | 'bought' | 'skipped';
+  priority?: 'must' | 'nice' | 'maybe';
   createdAt: string;
-  priceSnapshot?: {
-    latestPrice?: number;
-    latestStore?: string;
-    currency?: string;
-    productCount?: number;
-    checkedAt?: string;
-  };
-  priceHistory?: PriceHistoryEntry[];
 }
 
-const STORAGE_KEY = 'quickshop_wishes_v1';
+/* ─── Constants ──────────────────────────────────────────────── */
+
+const STORAGE_KEY = 'quickshop_wishes_v2';
 
 const PLACEHOLDERS = [
   '"iPhone 17 Pro Max"',
@@ -44,32 +35,29 @@ const PLACEHOLDERS = [
   '"Sony WH-1000XM5 Headphones"',
   '"Nike Air Max 95"',
   '"Kindle Paperwhite"',
-  '"Samsung Galaxy Watch 7"',
   '"MacBook Pro M4"',
   '"iPad Pro 13-inch"',
-  '"Apple AirPods Pro"',
+  '"Samsung Galaxy Watch 7"',
   '"DJI Mini 4 Pro Drone"',
-  '"PlayStation 5 Slim"',
-  '"Xbox Series X"',
-  '"Bose QuietComfort 45"',
-  '"GoPro Hero 13"',
-  '"Levi\'s 501 Jeans"',
-  '"Canon EOS R50 Camera"',
-  '"Garmin Fenix 8"',
-  '"Nintendo Switch OLED"',
-  '"Theragun Pro"',
-  '"Dyson V15 Vacuum"',
-  '"Samsung 65" OLED TV"',
   '"Herman Miller Aeron Chair"',
-  '"Vitamix Blender"',
-  '"Le Creuset Dutch Oven"',
-  '"Lululemon Define Jacket"',
-  '"Ray-Ban Meta Smart Glasses"',
-  '"Meta Quest 3"',
-  '"Sonos Era 300"',
-  '"Nespresso Vertuo Pop"',
-  '"Weber Genesis Grill"',
 ];
+
+const KNOWN_STORES: Record<string, string> = {
+  'amazon.in': 'Amazon',
+  'amazon.com': 'Amazon',
+  'flipkart.com': 'Flipkart',
+  'myntra.com': 'Myntra',
+  'nykaa.com': 'Nykaa',
+  'croma.com': 'Croma',
+  'meesho.com': 'Meesho',
+  'ajio.com': 'Ajio',
+  'snapdeal.com': 'Snapdeal',
+  'tatacliq.com': 'Tata CLiQ',
+  'reliancedigital.in': 'Reliance Digital',
+  'jiomart.com': 'JioMart',
+};
+
+/* ─── Helpers ────────────────────────────────────────────────── */
 
 function getId(w: Wish) { return w._id || w.id || ''; }
 
@@ -77,142 +65,153 @@ function formatDate(d: string) {
   return new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-function formatPrice(price: number, currency = 'INR') {
-  return new Intl.NumberFormat('en-IN', { style: 'currency', currency, maximumFractionDigits: 0 }).format(price);
+function getStoreLabel(url: string): string {
+  try {
+    const hostname = new URL(url).hostname.replace(/^www\./, '');
+    return KNOWN_STORES[hostname] || hostname;
+  } catch { return 'Link'; }
 }
 
-function capitalizeStore(store?: string | null) {
-  if (!store) return '';
-  return store.charAt(0).toUpperCase() + store.slice(1);
+function getFavicon(url: string): string {
+  try { return `https://www.google.com/s2/favicons?domain=${new URL(url).hostname}&sz=32`; }
+  catch { return ''; }
 }
 
-/* ─── Price metadata sub-component ──────────────────────────── */
-
-function PriceMeta({ pd }: { pd?: PriceData }) {
-  if (!pd) return null;
-  if (pd.loading) return (
-    <div className="mt-2 flex gap-2">
-      <div className="h-2.5 w-16 bg-[#ebebeb] dark:bg-[#1a1a1a] rounded animate-pulse" />
-      <div className="h-2.5 w-20 bg-[#ebebeb] dark:bg-[#1a1a1a] rounded animate-pulse" />
-    </div>
-  );
-  const hasPrice = !!pd.latestPrice;
-  const showAlts = !hasPrice && (pd.alternatives?.length ?? 0) > 0;
-  return (
-    <div className="mt-1.5 space-y-1">
-      {hasPrice && (
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
-          <span className="text-[11px] font-medium text-[#333] dark:text-[#ccc]">
-            {formatPrice(pd.latestPrice!, pd.currency)}
-            <span className="font-normal text-[#999] dark:text-[#555]"> · {capitalizeStore(pd.latestStore)}</span>
-          </span>
-          {pd.productCount !== undefined && (
-            <span className="text-[11px] text-[#bbb] dark:text-[#444]">{pd.productCount} {pd.productCount === 1 ? 'match' : 'matches'}</span>
-          )}
-        </div>
-      )}
-      {showAlts && (
-        <div className="space-y-0.5">
-          <p className="text-[11px] text-[#bbb] dark:text-[#444]">Not found · similar items:</p>
-          {pd.alternatives!.slice(0, 3).map((alt, i) => (
-            <a key={i} href={alt.url} target="_blank" rel="noopener noreferrer"
-              className="flex items-center gap-1 text-[11px] text-[#888] dark:text-[#555] hover:text-[#0a0a0a] dark:hover:text-white transition">
-              <ArrowRight className="h-2.5 w-2.5 shrink-0" />
-              <span className="truncate">{alt.title}</span>
-              <span className="shrink-0 text-[#bbb] dark:text-[#444]">· {formatPrice(alt.price)} · {capitalizeStore(alt.store)}</span>
-            </a>
-          ))}
-        </div>
-      )}
-      {!hasPrice && !showAlts && (
-        <p className="text-[11px] text-[#bbb] dark:text-[#444]">Not found in database yet</p>
-      )}
-    </div>
-  );
+function isValidUrl(url: string): boolean {
+  try { const p = new URL(url); return p.protocol === 'http:' || p.protocol === 'https:'; }
+  catch { return false; }
 }
+
+const PRIORITY_ICON: Record<string, string> = { must: '🔥', nice: '✨', maybe: '💭' };
+const STATUS_STYLE: Record<string, string> = {
+  bought: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400',
+  skipped: 'bg-[#f0f0f0] text-[#999] dark:bg-[#1a1a1a] dark:text-[#555] line-through',
+};
 
 function loadStorage(): Wish[] {
   if (typeof window === 'undefined') return [];
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch { return []; }
 }
 
-function saveStorage(data: Wish[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+function saveStorage(data: Wish[]) { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
+
+/* ─── WishCard ───────────────────────────────────────────────── */
+
+function WishCard({ wish, onDelete }: {
+  wish: Wish;
+  onDelete: () => void;
+}) {
+  const [deleting, setDeleting] = useState(false);
+  const id = getId(wish);
+  const links = wish.links || [];
+
+  const handleDelete = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDeleting(true);
+    onDelete();
+  };
+
+  const hasImage = !!wish.image;
+
+  return (
+    <div className={`group relative rounded-xl overflow-hidden border border-[#e5e5e5] dark:border-[#1e1e1e] transition-all duration-150 aspect-square ${deleting ? 'opacity-30 pointer-events-none' : 'hover:border-[#c0c0c0] dark:hover:border-[#333]'}`}>
+
+      {/* Background: image or placeholder */}
+      {hasImage ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={wish.image} alt={wish.text} className="absolute inset-0 w-full h-full object-cover" />
+      ) : (
+        <div className="absolute inset-0 flex items-center justify-center bg-[#f5f5f5] dark:bg-[#111]">
+          <Package className="h-8 w-8 text-[#ddd] dark:text-[#2a2a2a]" />
+        </div>
+      )}
+
+      {/* Gradient scrim at bottom (only when image present) */}
+      {hasImage && (
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+      )}
+
+      {/* Priority badge */}
+      {wish.priority && (
+        <span className="absolute top-3 left-3 text-lg leading-none z-20">{PRIORITY_ICON[wish.priority]}</span>
+      )}
+      {/* Status badge */}
+      {wish.status === 'bought' && (
+        <span className="absolute top-3 right-3 z-20 flex items-center gap-1 text-[10px] font-semibold pl-1.5 pr-2 py-0.5 rounded-full bg-black/50 backdrop-blur-sm text-emerald-400 border border-emerald-400/30">
+          <Check className="h-3 w-3" /> Got it
+        </span>
+      )}
+      {wish.status === 'skipped' && (
+        <span className="absolute top-3 right-3 z-20 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-black/40 text-white/60">Skipped</span>
+      )}
+
+      {/* Full-card link */}
+      <Link href={`/wish/${id}`} className="absolute inset-0 z-10" />
+
+      {/* Bottom overlay content */}
+      <div className="absolute bottom-0 left-0 right-0 z-20 p-3 pointer-events-none">
+        <p className={`text-sm font-semibold line-clamp-2 leading-snug ${hasImage ? (wish.status === 'bought' ? 'text-white/50' : 'text-white') : wish.status === 'bought' ? 'text-[#aaa] dark:text-[#555]' : 'text-[#0a0a0a] dark:text-white'}`}>
+          {wish.text}
+        </p>
+        <div className="flex items-center gap-2 mt-1 flex-wrap">
+          <p className={`text-[11px] ${hasImage ? 'text-white/50' : 'text-[#999] dark:text-[#444]'}`}>{formatDate(wish.createdAt)}</p>
+          {wish.budget && (
+            <span className={`text-[11px] font-medium ${hasImage ? 'text-violet-300' : 'text-violet-600 dark:text-violet-400'}`}>₹ {wish.budget}</span>
+          )}
+        </div>
+
+        {/* Link chips */}
+        {links.length > 0 && (
+          <div className="flex flex-wrap gap-1 mt-1.5">
+            {links.slice(0, 3).map((link, i) => (
+              <span key={i} className={`flex items-center gap-1 text-[11px] rounded px-1.5 py-0.5 ${hasImage ? 'bg-white/15 text-white/70' : 'text-[#888] dark:text-[#555] bg-white dark:bg-[#111] border border-[#e0e0e0] dark:border-[#2a2a2a]'}`}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={getFavicon(link.url)} alt="" className="h-3 w-3 rounded-sm" />
+                {link.label || getStoreLabel(link.url)}
+              </span>
+            ))}
+            {links.length > 3 && (
+              <span className={`text-[11px] px-1 py-0.5 ${hasImage ? 'text-white/40' : 'text-[#bbb] dark:text-[#444]'}`}>+{links.length - 3}</span>
+            )}
+          </div>
+        )}
+
+        <div className="flex items-center justify-between mt-2">
+          <span className={`text-[11px] ${hasImage ? 'text-white/30' : 'text-[#bbb] dark:text-[#333]'}`}>
+            {links.length} {links.length === 1 ? 'link' : 'links'}
+          </span>
+          <div className="flex items-center gap-1 pointer-events-auto">
+            <button onClick={handleDelete} className={`p-1.5 rounded transition opacity-0 group-hover:opacity-100 ${hasImage ? 'text-white/40 hover:text-red-400' : 'text-[#ccc] dark:text-[#2a2a2a] hover:text-red-500 dark:hover:text-red-400'}`}>
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+            <ChevronRight className={`h-3.5 w-3.5 ${hasImage ? 'text-white/30' : 'text-[#ccc] dark:text-[#2a2a2a]'}`} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
+
+/* ─── Main page ──────────────────────────────────────────────── */
 
 function WishPage({ isSignedIn }: { isSignedIn: boolean }) {
   const [wishes, setWishes] = useState<Wish[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [adding, setAdding] = useState(false);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editText, setEditText] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
-  const editRef = useRef<HTMLInputElement>(null);
   const [phIdx, setPhIdx] = useState(0);
   const [phVisible, setPhVisible] = useState(true);
   const [inputFocused, setInputFocused] = useState(false);
-  const [priceData, setPriceData] = useState<Record<string, PriceData>>({});
-  const fetchedIds = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     const timer = setInterval(() => {
       setPhVisible(false);
-      setTimeout(() => {
-        setPhIdx(i => (i + 1) % PLACEHOLDERS.length);
-        setPhVisible(true);
-      }, 350);
+      setTimeout(() => { setPhIdx(i => (i + 1) % PLACEHOLDERS.length); setPhVisible(true); }, 350);
     }, 2500);
     return () => clearInterval(timer);
   }, []);
-
-  const fetchPriceData = useCallback(async (wish: Wish) => {
-    const id = getId(wish);
-    setPriceData(prev => ({ ...prev, [id]: { loading: true } }));
-    try {
-      // Unauthenticated or local wish → stateless summary API
-      if (!isSignedIn || !id || id.startsWith('local-')) {
-        const res = await fetch(`/api/products/summary?q=${encodeURIComponent(wish.text)}`);
-        const json = await res.json();
-        setPriceData(prev => ({ ...prev, [id]: { loading: false, ...json } }));
-        return;
-      }
-
-      // Signed-in: use cached snapshot if fresh and has a price
-      const snap = wish.priceSnapshot;
-      const age = snap?.checkedAt ? Date.now() - new Date(snap.checkedAt).getTime() : Infinity;
-      if (age < 3_600_000 && snap?.latestPrice) {
-        setPriceData(prev => ({
-          ...prev,
-          [id]: {
-            loading: false,
-            latestPrice: snap.latestPrice,
-            latestStore: snap.latestStore,
-            currency: snap.currency,
-            productCount: snap.productCount,
-          },
-        }));
-        return;
-      }
-
-      // Stale or no snapshot → fetch fresh from server
-      const res = await fetch(`/api/wishes/${id}/snapshot`, { method: 'POST' });
-      const json = await res.json();
-      setPriceData(prev => ({ ...prev, [id]: { loading: false, ...json } }));
-    } catch {
-      setPriceData(prev => ({ ...prev, [id]: { loading: false } }));
-    }
-  }, [isSignedIn]);
-
-  useEffect(() => {
-    if (isLoading) return;
-    const toFetch = wishes.filter(w => !fetchedIds.current.has(getId(w)));
-    toFetch.forEach(w => {
-      fetchedIds.current.add(getId(w));
-      fetchPriceData(w);
-    });
-  }, [wishes, isLoading, fetchPriceData]);
 
   const fetchWishes = useCallback(async () => {
     setIsLoading(true);
@@ -221,15 +220,11 @@ function WishPage({ isSignedIn }: { isSignedIn: boolean }) {
       const res = await fetch('/api/wishes');
       const json = await res.json();
       setWishes(json.data || []);
-    } catch {
-      setWishes(loadStorage());
-    } finally {
-      setIsLoading(false);
-    }
+    } catch { setWishes(loadStorage()); }
+    finally { setIsLoading(false); }
   }, [isSignedIn]);
 
   useEffect(() => { fetchWishes(); }, [fetchWishes]);
-  useEffect(() => { if (editingId) editRef.current?.focus(); }, [editingId]);
 
   const addWish = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -239,7 +234,7 @@ function WishPage({ isSignedIn }: { isSignedIn: boolean }) {
     setInput('');
     try {
       if (!isSignedIn) {
-        const w: Wish = { id: `local-${Date.now()}`, text, createdAt: new Date().toISOString() };
+        const w: Wish = { id: `local-${Date.now()}`, text, links: [], createdAt: new Date().toISOString() };
         const updated = [w, ...wishes];
         setWishes(updated);
         saveStorage(updated);
@@ -252,84 +247,49 @@ function WishPage({ isSignedIn }: { isSignedIn: boolean }) {
       });
       const json = await res.json();
       if (json.data) setWishes(prev => [json.data, ...prev]);
-    } finally {
-      setAdding(false);
-      inputRef.current?.focus();
-    }
+    } finally { setAdding(false); inputRef.current?.focus(); }
   };
 
-  const deleteWish = async (wish: Wish) => {
-    const id = getId(wish);
-    setDeletingId(id);
-    try {
-      if (!isSignedIn || id.startsWith('local-')) {
-        const updated = wishes.filter(w => getId(w) !== id);
-        setWishes(updated);
-        saveStorage(updated);
-        return;
-      }
-      await fetch(`/api/wishes/${id}`, { method: 'DELETE' });
-      setWishes(prev => prev.filter(w => getId(w) !== id));
-    } finally {
-      setDeletingId(null);
-    }
-  };
-
-  const startEdit = (wish: Wish) => { setEditingId(getId(wish)); setEditText(wish.text); };
-  const cancelEdit = () => { setEditingId(null); setEditText(''); };
-
-  const saveEdit = async (wish: Wish) => {
-    const id = getId(wish);
-    const text = editText.trim();
-    if (!text || text === wish.text) { cancelEdit(); return; }
-    if (!isSignedIn || id.startsWith('local-')) {
-      setWishes(prev => prev.map(w => getId(w) === id ? { ...w, text } : w));
-      saveStorage(wishes.map(w => getId(w) === id ? { ...w, text } : w));
-      cancelEdit();
-      return;
-    }
-    const res = await fetch(`/api/wishes/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text }),
+  const updateWish = useCallback((updated: Wish) => {
+    setWishes(prev => {
+      const next = prev.map(w => getId(w) === getId(updated) ? updated : w);
+      if (!isSignedIn) saveStorage(next);
+      return next;
     });
-    const json = await res.json();
-    if (json.data) {
-      setWishes(prev => prev.map(w => getId(w) === id ? json.data : w));
-      // Text changed — clear stale price data so it re-fetches
-      fetchedIds.current.delete(id);
-      setPriceData(prev => { const next = { ...prev }; delete next[id]; return next; });
+  }, [isSignedIn]);
+
+  const deleteWish = useCallback(async (wish: Wish) => {
+    const id = getId(wish);
+    setWishes(prev => {
+      const next = prev.filter(w => getId(w) !== id);
+      if (!isSignedIn) saveStorage(next);
+      return next;
+    });
+    if (isSignedIn && !id.startsWith('local-')) {
+      await fetch(`/api/wishes/${id}`, { method: 'DELETE' });
     }
-    cancelEdit();
-  };
+  }, [isSignedIn]);
 
   return (
     <div className="min-h-screen flex flex-col">
       {/* Header */}
       <header className="sticky top-0 z-40 w-full border-b border-[#e0e0e0] dark:border-[#222] bg-white/90 dark:bg-black/90 backdrop-blur-md">
-        <div className="max-w-2xl mx-auto px-6 h-14 flex items-center justify-between">
+        <div className="max-w-4xl mx-auto px-6 h-14 flex items-center justify-between">
           <Link href="/wish" className="flex items-center gap-2 hover:opacity-70 transition">
             <ShoppingBag className="h-4 w-4 text-violet-400" />
             <span className="text-sm font-semibold">Wish Me</span>
           </Link>
-          <div className="flex items-center gap-3">
-            <Link
-              href="/wish/explore"
-              className="flex items-center gap-1.5 text-xs text-[#999] dark:text-[#555] hover:text-[#0a0a0a] dark:hover:text-white transition"
-            >
-              <LayoutGrid className="h-3.5 w-3.5" />
-              Explore
-            </Link>
-            <AuthButton />
-          </div>
+          <AuthButton />
         </div>
       </header>
 
       {/* Main */}
-      <main className="flex-grow max-w-2xl mx-auto w-full px-6 py-10 space-y-8">
+      <main className="flex-grow max-w-4xl mx-auto w-full px-6 py-10 space-y-8">
         <div>
           <h1 className="text-xl font-bold tracking-tight">Wishlist</h1>
-          <p className="text-xs text-[#666] dark:text-[#555] mt-1">Jot down what you want — find products when you&apos;re ready.</p>
+          <p className="text-xs text-[#666] dark:text-[#555] mt-1">
+            Track things you want. Paste store links to jump there when you&apos;re ready.
+          </p>
         </div>
 
         {/* Add wish */}
@@ -363,73 +323,43 @@ function WishPage({ isSignedIn }: { isSignedIn: boolean }) {
           </button>
         </form>
 
-        {/* List */}
+        {/* Grid */}
         {isLoading ? (
-          <div className="space-y-2">
-            {[1, 2, 3].map(i => <div key={i} className="h-16 rounded-lg bg-[#f0f0f0] border border-[#e5e5e5] dark:bg-[#111] dark:border-[#1a1a1a] animate-pulse" />)}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="h-52 rounded-xl bg-[#f0f0f0] dark:bg-[#111] animate-pulse" />
+            ))}
           </div>
         ) : wishes.length === 0 ? (
-          <div className="py-24 flex flex-col items-center gap-3 text-center">
+          <div className="py-32 flex flex-col items-center gap-3 text-center">
             <ShoppingBag className="h-8 w-8 text-[#ccc] dark:text-[#333]" />
             <p className="text-[#666] dark:text-[#555] text-sm">No wishes yet</p>
             <p className="text-[#999] dark:text-[#444] text-xs">Type anything above and press Add.</p>
           </div>
         ) : (
-          <ul className="space-y-2">
-            {wishes.map(wish => {
-              const id = getId(wish);
-              const isDeleting = deletingId === id;
-              const isEditing = editingId === id;
-              return (
-                <li key={id} className={`bg-[#f8f8f8] border border-[#e5e5e5] dark:bg-[#111] dark:border-[#222] rounded-lg transition-all duration-150 ${isDeleting ? 'opacity-30 pointer-events-none' : 'hover:border-[#d0d0d0] dark:hover:border-[#333]'}`}>
-                  {isEditing ? (
-                    <div className="flex items-center gap-2 px-4 py-3">
-                      <input
-                        ref={editRef}
-                        value={editText}
-                        onChange={e => setEditText(e.target.value)}
-                        onKeyDown={e => { if (e.key === 'Enter') saveEdit(wish); if (e.key === 'Escape') cancelEdit(); }}
-                        className="flex-grow bg-transparent text-sm text-[#0a0a0a] dark:text-white focus:outline-none border-b border-black/20 dark:border-white/20 pb-0.5"
-                      />
-                      <button onClick={() => saveEdit(wish)} className="p-1.5 text-[#0a0a0a] dark:text-white hover:bg-black/10 dark:hover:bg-white/10 rounded transition"><Check className="h-3.5 w-3.5" /></button>
-                      <button onClick={cancelEdit} className="p-1.5 text-[#999] dark:text-[#555] hover:bg-black/5 dark:hover:bg-white/5 rounded transition"><X className="h-3.5 w-3.5" /></button>
-                    </div>
-                  ) : (
-                    <div className="px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        <div className="flex-grow min-w-0">
-                          <p className="text-sm text-[#0a0a0a] dark:text-white truncate">{wish.text}</p>
-                          <p className="text-[11px] text-[#999] dark:text-[#444] mt-0.5">{formatDate(wish.createdAt)}</p>
-                        </div>
-                        <div className="flex items-center gap-1 shrink-0">
-                          <Link
-                            href={`/wish/find?q=${encodeURIComponent(wish.text)}`}
-                            className="flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-[#d4d4d4] dark:border-[#333] text-[#999] dark:text-[#777] text-xs hover:border-[#999] hover:text-[#0a0a0a] dark:hover:border-[#555] dark:hover:text-white transition"
-                          >
-                            <Search className="h-3 w-3" /><span>Find</span><ArrowRight className="h-3 w-3" />
-                          </Link>
-                          <button onClick={() => startEdit(wish)} className="p-1.5 text-[#bbb] hover:text-[#0a0a0a] dark:text-[#444] dark:hover:text-white rounded transition"><Pencil className="h-3.5 w-3.5" /></button>
-                          <button onClick={() => deleteWish(wish)} className="p-1.5 text-[#bbb] hover:text-red-500 dark:text-[#444] dark:hover:text-red-400 rounded transition"><Trash2 className="h-3.5 w-3.5" /></button>
-                        </div>
-                      </div>
-                      <PriceMeta pd={priceData[id]} />
-                    </div>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {wishes.map(wish => (
+              <WishCard
+                key={getId(wish)}
+                wish={wish}
+                onDelete={() => deleteWish(wish)}
+              />
+            ))}
+          </div>
         )}
 
         {wishes.length > 0 && (
           <p className="text-center text-[11px] text-[#bbb] dark:text-[#333]">
-            {wishes.length} {wishes.length === 1 ? 'wish' : 'wishes'}{!isSignedIn && ' · local'}
+            {wishes.length} {wishes.length === 1 ? 'wish' : 'wishes'}
+            {!isSignedIn && ' · saved locally'}
           </p>
         )}
       </main>
     </div>
   );
 }
+
+/* ─── Auth wrapper ───────────────────────────────────────────── */
 
 function AuthWishPage() {
   const { isSignedIn, isLoaded } = useAuth();

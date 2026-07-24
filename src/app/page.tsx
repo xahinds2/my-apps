@@ -6,7 +6,7 @@ const APPS = [
   {
     num: '01', name: 'Wish Me', slug: '/wish', live: true,
     icon: ShoppingBag,
-    desc: 'Write what you want in plain text. Search real products and buy directly from Amazon or Flipkart.',
+    desc: 'Track things you want. Paste store links and jump to them whenever you\u2019re ready to buy.',
     accent: 'bg-violet-500',
     iconCls: 'bg-violet-500/10 border-violet-500/20 text-violet-400',
     badge: 'bg-violet-500/10 border-violet-500/30 text-violet-400',

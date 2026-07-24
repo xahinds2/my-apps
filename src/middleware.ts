@@ -7,13 +7,6 @@ const WRITE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 function applyRateLimit(req: NextRequest): NextResponse | null {
   if (!req.nextUrl.pathname.startsWith('/api/')) return null;
 
-  // Allow scraper requests authenticated with the server-side token to bypass
-  const scraperToken = process.env.SCRAPER_TOKEN;
-  if (scraperToken) {
-    const auth = req.headers.get('authorization') ?? '';
-    if (auth === `Bearer ${scraperToken}`) return null;
-  }
-
   const ip = getClientIP(req);
   const isWrite = WRITE_METHODS.has(req.method);
   // Stricter limit for write operations to slow down automated abuse

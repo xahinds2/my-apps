@@ -1,43 +1,39 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
-export interface IPriceHistoryEntry {
-  price: number;
-  store: string;
-  date: Date;
-}
-
-export interface IPriceSnapshot {
-  latestPrice?: number;
-  latestStore?: string;
-  currency?: string;
-  productCount?: number;
-  checkedAt?: Date;
+export interface IWishLink {
+  url: string;
+  label?: string;
 }
 
 export interface IWish extends Document {
   userId: string;
   text: string;
+  links: IWishLink[];
+  image?: string;
+  budget?: string;
+  timeline?: string;
+  status?: 'pending' | 'bought' | 'skipped';
+  priority?: 'must' | 'nice' | 'maybe';
+  note?: string;
   createdAt: Date;
-  priceSnapshot?: IPriceSnapshot;
-  priceHistory?: IPriceHistoryEntry[];
 }
+
+const WishLinkSchema: Schema = new Schema({
+  url: { type: String, required: true },
+  label: { type: String },
+}, { _id: false });
 
 const WishSchema: Schema = new Schema({
   userId: { type: String, required: true },
   text: { type: String, required: true, trim: true },
+  links: { type: [WishLinkSchema], default: [] },
+  image: { type: String },
+  budget: { type: String },
+  timeline: { type: String },
+  status: { type: String, enum: ['pending', 'bought', 'skipped'], default: 'pending' },
+  priority: { type: String, enum: ['must', 'nice', 'maybe'] },
+  note: { type: String },
   createdAt: { type: Date, default: Date.now },
-  priceSnapshot: {
-    latestPrice: Number,
-    latestStore: String,
-    currency: { type: String, default: 'INR' },
-    productCount: Number,
-    checkedAt: Date,
-  },
-  priceHistory: [{
-    price: { type: Number, required: true },
-    store: { type: String, required: true },
-    date: { type: Date, default: Date.now },
-  }],
 });
 
 // List render: fetch a user's wishes newest-first without an in-memory sort.
