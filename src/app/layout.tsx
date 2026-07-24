@@ -9,8 +9,8 @@ import './globals.css';
 const geist = Geist({ subsets: ['latin'], variable: '--font-geist' });
 
 export const metadata: Metadata = {
-  title: 'xahinds2 - Applications',
-  description: 'A personal suite of minimal tools — wishlist, cards, health, finance, and travel.',
+  title: 'Sahin\'s Apps',
+  description: 'A personal suite of minimal tools — Manifest, cards, health, finance, and travel.',
 };
 
 export default function RootLayout({

@@ -18,7 +18,7 @@ export async function GET(
 
     const wish = await Wish.findOne({ _id: id, userId }).lean();
     if (!wish) {
-      return NextResponse.json({ error: 'Wish not found' }, { status: 404 });
+      return NextResponse.json({ error: 'Manifest item not found' }, { status: 404 });
     }
 
     return NextResponse.json({ data: wish });
@@ -43,7 +43,7 @@ export async function DELETE(
 
     const wish = await Wish.findOneAndDelete({ _id: id, userId });
     if (!wish) {
-      return NextResponse.json({ error: 'Wish not found' }, { status: 404 });
+      return NextResponse.json({ error: 'Manifest item not found' }, { status: 404 });
     }
 
     return NextResponse.json({ success: true });
@@ -76,7 +76,7 @@ export async function PATCH(
 
     if (body?.text !== undefined) {
       const text = body.text.trim();
-      if (!text) return NextResponse.json({ error: 'Wish text cannot be empty' }, { status: 400 });
+      if (!text) return NextResponse.json({ error: 'Item text cannot be empty' }, { status: 400 });
       update.text = text;
     }
 
@@ -129,7 +129,7 @@ export async function PATCH(
     );
 
     if (!wish) {
-      return NextResponse.json({ error: 'Wish not found' }, { status: 404 });
+      return NextResponse.json({ error: 'Manifest item not found' }, { status: 404 });
     }
 
     return NextResponse.json({ source: 'database', data: wish });

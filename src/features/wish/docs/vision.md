@@ -1,8 +1,8 @@
-# Wish Me — Vision
+# Manifest — Vision
 
 ## What it is
 
-A personal wishlist app. Not a product search engine, not a price tracker — just a simple place to remember what you want in life and jump to the right store when you're ready to buy.
+A personal manifest app. Not a product search engine, not a price tracker — just a simple place to remember what you want in life and jump to the right store when you're ready to buy.
 
 ## The problem it solves
 
@@ -11,7 +11,7 @@ When you want something, you often:
 - Find a few specific listings you like
 - Then forget where you found them
 
-Wish Me is your memory. Jot down the item, paste the store links you shortlisted, and come back to them anytime.
+Manifest is your memory. Jot down the item, paste the store links you shortlisted, and come back to them anytime.
 
 ## Core principles
 
@@ -27,7 +27,7 @@ The app is a launchpad, not a destination. The goal is to get the user to the st
 **4. Zero maintenance**
 No scrapers to fix, no store-specific code to update, no API keys for external services. The only moving parts are the user's own links.
 
-## What a wish item looks like
+## What a manifest item looks like
 
 - A name (typed by the user, e.g. "Nike Air Max 95")
 - Zero or more store links, each associated with a specific product listing

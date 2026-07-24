@@ -10,7 +10,7 @@ Live at: [xahinds2.vercel.app](https://xahinds2.vercel.app)
 
 | App | Status | Description |
 |-----|--------|-------------|
-| **wish me** | Live | Write what you want, search real products, buy from Amazon/Flipkart |
+| **manifest** | Live | Keep the things you want together with store links and jump back when you're ready |
 | **flex-card** | Soon | Manage credit cards, track benefits and cashback |
 | **healthify** | Soon | Upload blood reports, track health markers over time |
 | **finance** | Soon | Monthly income/expense tracker with savings goals |
@@ -38,7 +38,7 @@ Live at: [xahinds2.vercel.app](https://xahinds2.vercel.app)
 src/
 ├── app/
 │   ├── page.tsx          # Landing hub
-│   ├── wish/page.tsx     # wish me app
+│   ├── wish/page.tsx     # Manifest app
 │   └── api/
 │       └── wishes/       # Wishes CRUD
 ├── components/           # UI components

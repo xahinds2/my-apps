@@ -4,7 +4,7 @@ import AuthButton from '@/components/AuthButton';
 
 const APPS = [
   {
-    num: '01', name: 'Wish Me', slug: '/wish', live: true,
+    num: '01', name: 'Manifest', slug: '/manifest', live: true,
     icon: ShoppingBag,
     desc: 'Track things you want. Paste store links and jump to them whenever you\u2019re ready to buy.',
     accent: 'bg-violet-500',
