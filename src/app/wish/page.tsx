@@ -102,14 +102,27 @@ function WishCard({ wish, onDelete }: {
   onDelete: () => void;
 }) {
   const [deleting, setDeleting] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const id = getId(wish);
   const links = wish.links || [];
 
-  const handleDelete = (e: React.MouseEvent) => {
+  const handleDeleteClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setConfirmingDelete(true);
+  };
+
+  const handleConfirmDelete = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setDeleting(true);
     onDelete();
+  };
+
+  const handleCancelDelete = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setConfirmingDelete(false);
   };
 
   const hasImage = !!wish.image;
@@ -182,9 +195,16 @@ function WishCard({ wish, onDelete }: {
             {links.length} {links.length === 1 ? 'link' : 'links'}
           </span>
           <div className="flex items-center gap-1 pointer-events-auto">
-            <button onClick={handleDelete} className={`p-1.5 rounded transition opacity-0 group-hover:opacity-100 ${hasImage ? 'text-white/40 hover:text-red-400' : 'text-[#ccc] dark:text-[#2a2a2a] hover:text-red-500 dark:hover:text-red-400'}`}>
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
+            {confirmingDelete ? (
+              <>
+                <button onClick={handleCancelDelete} className={`text-[10px] px-1.5 py-0.5 rounded transition font-medium ${hasImage ? 'text-white/60 hover:text-white' : 'text-[#999] hover:text-[#555]'}`}>Cancel</button>
+                <button onClick={handleConfirmDelete} className="text-[10px] px-1.5 py-0.5 rounded bg-red-500 text-white font-medium transition hover:bg-red-600">Delete</button>
+              </>
+            ) : (
+              <button onClick={handleDeleteClick} className={`p-1.5 rounded transition opacity-0 group-hover:opacity-100 ${hasImage ? 'text-white/40 hover:text-red-400' : 'text-[#ccc] dark:text-[#2a2a2a] hover:text-red-500 dark:hover:text-red-400'}`}>
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            )}
             <ChevronRight className={`h-3.5 w-3.5 ${hasImage ? 'text-white/30' : 'text-[#ccc] dark:text-[#2a2a2a]'}`} />
           </div>
         </div>

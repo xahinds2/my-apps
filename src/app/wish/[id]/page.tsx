@@ -200,6 +200,8 @@ function WishDetailPage({ wishId, isSignedIn }: { wishId: string; isSignedIn: bo
     patchField({ links: wish.links.filter((_, i) => i !== idx) });
   };
 
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
   const deleteWish = async () => {
     if (!wish) return;
     if (!isSignedIn || wishId.startsWith('local-')) {
@@ -341,7 +343,7 @@ function WishDetailPage({ wishId, isSignedIn }: { wishId: string; isSignedIn: bo
               {new Date(wish.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
             </p>
           </div>
-          <button onClick={deleteWish} className="p-2 text-[#ccc] dark:text-[#333] hover:text-red-500 dark:hover:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-500/10 transition shrink-0" title="Delete wish">
+          <button onClick={() => setConfirmDelete(true)} className="p-2 text-[#ccc] dark:text-[#333] hover:text-red-500 dark:hover:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-500/10 transition shrink-0" title="Delete wish">
             <Trash2 className="h-4 w-4" />
           </button>
         </div>
@@ -541,6 +543,24 @@ function WishDetailPage({ wishId, isSignedIn }: { wishId: string; isSignedIn: bo
         </div>
 
       </main>
+
+      {/* ── Delete confirmation modal ── */}
+      {confirmDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={() => setConfirmDelete(false)}>
+          <div className="bg-white dark:bg-[#111] border border-[#e0e0e0] dark:border-[#2a2a2a] rounded-2xl p-6 max-w-sm w-full shadow-xl" onClick={e => e.stopPropagation()}>
+            <h2 className="text-base font-semibold text-[#0a0a0a] dark:text-white">Delete wish?</h2>
+            <p className="mt-1 text-sm text-[#666] dark:text-[#555]">&ldquo;{wish.text}&rdquo; will be permanently removed.</p>
+            <div className="flex gap-3 mt-5">
+              <button onClick={() => setConfirmDelete(false)} className="flex-1 py-2 rounded-xl border border-[#e0e0e0] dark:border-[#2a2a2a] text-sm font-medium text-[#0a0a0a] dark:text-white hover:bg-[#f5f5f5] dark:hover:bg-white/5 transition">
+                Cancel
+              </button>
+              <button onClick={deleteWish} className="flex-1 py-2 rounded-xl bg-red-500 hover:bg-red-600 text-white text-sm font-medium transition">
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
