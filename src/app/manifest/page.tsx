@@ -113,6 +113,7 @@ function WishCard({ wish, onDelete }: {
 	return (
 		<div className={`group relative rounded-xl overflow-hidden border border-[#e5e5e5] dark:border-[#1e1e1e] transition-all duration-150 aspect-square ${deleting ? 'opacity-30 pointer-events-none' : 'hover:border-[#c0c0c0] dark:hover:border-[#333]'}`}>
 			{hasImage ? (
+				/* eslint-disable-next-line @next/next/no-img-element */
 				<img src={wish.image} alt={wish.text} className="absolute inset-0 w-full h-full object-cover" />
 			) : (
 				<div className="absolute inset-0 flex items-center justify-center bg-[#f5f5f5] dark:bg-[#111]">
@@ -153,6 +154,7 @@ function WishCard({ wish, onDelete }: {
 					<div className="flex flex-wrap gap-1 mt-1.5">
 						{links.slice(0, 3).map((link, i) => (
 							<span key={i} className={`flex items-center gap-1 text-[11px] rounded px-1.5 py-0.5 ${hasImage ? 'bg-white/15 text-white/70' : 'text-[#888] dark:text-[#555] bg-white dark:bg-[#111] border border-[#e0e0e0] dark:border-[#2a2a2a]'}`}>
+								{/* eslint-disable-next-line @next/next/no-img-element */}
 								<img src={getFavicon(link.url)} alt="" className="h-3 w-3 rounded-sm" />
 								{link.label || getStoreLabel(link.url)}
 							</span>

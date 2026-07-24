@@ -240,8 +240,10 @@ function ManifestDetailPage({ wishId, isSignedIn }: { wishId: string; isSignedIn
 				>
 					{wish.image ? (
 						<>
+							{/* eslint-disable-next-line @next/next/no-img-element */}
 							<img src={wish.image} alt="" aria-hidden className="absolute inset-0 w-full h-full object-cover scale-110 blur-2xl opacity-60" />
 							<div className="absolute inset-0 bg-black/20" />
+							{/* eslint-disable-next-line @next/next/no-img-element */}
 							<img src={wish.image} alt={wish.text} className="relative z-10 w-full h-full object-contain drop-shadow-xl" />
 						</>
 					) : (
@@ -439,6 +441,7 @@ function ManifestDetailPage({ wishId, isSignedIn }: { wishId: string; isSignedIn
 						{STORE_SEARCH.map(store => (
 							<a key={store.name} href={store.search(wish.text)} target="_blank" rel="noopener noreferrer"
 								className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[#e0e0e0] dark:border-[#2a2a2a] bg-white dark:bg-[#111] text-xs text-[#555] dark:text-[#888] hover:border-[#0a0a0a] hover:text-[#0a0a0a] dark:hover:border-white dark:hover:text-white transition">
+								{/* eslint-disable-next-line @next/next/no-img-element */}
 								<img src={`https://www.google.com/s2/favicons?domain=${store.domain}&sz=32`} alt="" className="h-3.5 w-3.5 rounded-sm" />
 								{store.name}
 							</a>
@@ -464,6 +467,7 @@ function ManifestDetailPage({ wishId, isSignedIn }: { wishId: string; isSignedIn
 							<div key={i} className="flex items-center gap-2 group">
 								<a href={link.url} target="_blank" rel="noopener noreferrer"
 									className="flex items-center gap-3 flex-grow min-w-0 px-4 py-3 rounded-xl bg-[#f8f8f8] dark:bg-[#0d0d0d] border border-[#e5e5e5] dark:border-[#1e1e1e] hover:border-[#aaa] dark:hover:border-[#444] transition">
+									{/* eslint-disable-next-line @next/next/no-img-element */}
 									<img src={getFavicon(link.url)} alt="" className="h-5 w-5 rounded shrink-0" />
 									<div className="flex-grow min-w-0">
 										<p className="text-sm font-medium text-[#0a0a0a] dark:text-white">{link.label || getStoreLabel(link.url)}</p>
