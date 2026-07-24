@@ -19,7 +19,7 @@ Manifest is your memory. Jot down the item, paste the store links you shortliste
 We do not fetch product data automatically. Stores block it, it breaks constantly, and it's not the point. The user is the curator.
 
 **2. Links are first-class**
-Each wish item can have multiple store links — different products or different stores for the same thing. Clicking a link opens the store directly.
+Each manifest item can have multiple store links — different products or different stores for the same thing. Clicking a link opens the store directly.
 
 **3. One click to the store**
 The app is a launchpad, not a destination. The goal is to get the user to the store as fast as possible when they're ready to buy.

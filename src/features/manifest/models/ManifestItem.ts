@@ -1,14 +1,14 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
-export interface IWishLink {
+export interface IManifestLink {
   url: string;
   label?: string;
 }
 
-export interface IWish extends Document {
+export interface IManifestItem extends Document {
   userId: string;
   text: string;
-  links: IWishLink[];
+  links: IManifestLink[];
   image?: string;
   budget?: string;
   timeline?: string;
@@ -18,15 +18,15 @@ export interface IWish extends Document {
   createdAt: Date;
 }
 
-const WishLinkSchema: Schema = new Schema({
+const ManifestLinkSchema: Schema = new Schema({
   url: { type: String, required: true },
   label: { type: String },
 }, { _id: false });
 
-const WishSchema: Schema = new Schema({
+const ManifestItemSchema: Schema = new Schema({
   userId: { type: String, required: true },
   text: { type: String, required: true, trim: true },
-  links: { type: [WishLinkSchema], default: [] },
+  links: { type: [ManifestLinkSchema], default: [] },
   image: { type: String },
   budget: { type: String },
   timeline: { type: String },
@@ -36,12 +36,10 @@ const WishSchema: Schema = new Schema({
   createdAt: { type: Date, default: Date.now },
 });
 
-// List render: fetch a user's wishes newest-first without an in-memory sort.
-WishSchema.index({ userId: 1, createdAt: -1 });
+ManifestItemSchema.index({ userId: 1, createdAt: -1 });
 
-// In development, drop the cached model so schema changes are picked up on hot reload.
 if (process.env.NODE_ENV === 'development') {
-  delete (mongoose.models as Record<string, unknown>).Wish;
+  delete (mongoose.models as Record<string, unknown>).ManifestItem;
 }
 
-export default mongoose.models.Wish || mongoose.model<IWish>('Wish', WishSchema);
+export default mongoose.models.ManifestItem || mongoose.model<IManifestItem>('ManifestItem', ManifestItemSchema, 'wishes');

@@ -6,20 +6,22 @@ import { useAuth } from '@clerk/nextjs';
 import AuthButton from '@/components/AuthButton';
 import { Plus, Trash2, ShoppingBag, Package, ChevronRight, Check } from 'lucide-react';
 
-interface WishLink {
+interface ManifestLink {
 	url: string;
 	label?: string;
 }
 
-interface Wish {
+interface ManifestItem {
 	_id?: string;
 	id?: string;
 	text: string;
-	links: WishLink[];
+	links: ManifestLink[];
 	image?: string;
 	budget?: string;
+	timeline?: string;
 	status?: 'pending' | 'bought' | 'skipped';
 	priority?: 'must' | 'nice' | 'maybe';
+	note?: string;
 	createdAt: string;
 }
 
@@ -53,7 +55,7 @@ const KNOWN_STORES: Record<string, string> = {
 	'jiomart.com': 'JioMart',
 };
 
-function getId(w: Wish) { return w._id || w.id || ''; }
+function getId(item: ManifestItem) { return item._id || item.id || ''; }
 
 function formatDate(d: string) {
 	return new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -73,21 +75,25 @@ function getFavicon(url: string): string {
 
 const PRIORITY_ICON: Record<string, string> = { must: '🔥', nice: '✨', maybe: '💭' };
 
-function loadStorage(): Wish[] {
+function loadStorage(): ManifestItem[] {
 	if (typeof window === 'undefined') return [];
 	try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch { return []; }
 }
 
-function saveStorage(data: Wish[]) { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
+function saveStorage(data: ManifestItem[]) { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
 
-function WishCard({ wish, onDelete }: {
-	wish: Wish;
+function isLocalManifestItem(item: ManifestItem): boolean {
+	return getId(item).startsWith('local-');
+}
+
+function ManifestCard({ item, onDelete }: {
+	item: ManifestItem;
 	onDelete: () => void;
 }) {
 	const [deleting, setDeleting] = useState(false);
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
-	const id = getId(wish);
-	const links = wish.links || [];
+	const id = getId(item);
+	const links = item.links || [];
 
 	const handleDeleteClick = (e: React.MouseEvent) => {
 		e.preventDefault();
@@ -108,13 +114,13 @@ function WishCard({ wish, onDelete }: {
 		setConfirmingDelete(false);
 	};
 
-	const hasImage = !!wish.image;
+	const hasImage = !!item.image;
 
 	return (
 		<div className={`group relative rounded-xl overflow-hidden border border-[#e5e5e5] dark:border-[#1e1e1e] transition-all duration-150 aspect-square ${deleting ? 'opacity-30 pointer-events-none' : 'hover:border-[#c0c0c0] dark:hover:border-[#333]'}`}>
 			{hasImage ? (
 				/* eslint-disable-next-line @next/next/no-img-element */
-				<img src={wish.image} alt={wish.text} className="absolute inset-0 w-full h-full object-cover" />
+				<img src={item.image} alt={item.text} className="absolute inset-0 w-full h-full object-cover" />
 			) : (
 				<div className="absolute inset-0 flex items-center justify-center bg-[#f5f5f5] dark:bg-[#111]">
 					<Package className="h-8 w-8 text-[#ddd] dark:text-[#2a2a2a]" />
@@ -125,28 +131,28 @@ function WishCard({ wish, onDelete }: {
 				<div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
 			)}
 
-			{wish.priority && (
-				<span className="absolute top-3 left-3 text-lg leading-none z-20">{PRIORITY_ICON[wish.priority]}</span>
+			{item.priority && (
+				<span className="absolute top-3 left-3 text-lg leading-none z-20">{PRIORITY_ICON[item.priority]}</span>
 			)}
-			{wish.status === 'bought' && (
+			{item.status === 'bought' && (
 				<span className="absolute top-3 right-3 z-20 flex items-center gap-1 text-[10px] font-semibold pl-1.5 pr-2 py-0.5 rounded-full bg-black/50 backdrop-blur-sm text-emerald-400 border border-emerald-400/30">
 					<Check className="h-3 w-3" /> Got it
 				</span>
 			)}
-			{wish.status === 'skipped' && (
+			{item.status === 'skipped' && (
 				<span className="absolute top-3 right-3 z-20 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-black/40 text-white/60">Skipped</span>
 			)}
 
 			<Link href={`/manifest/${id}`} className="absolute inset-0 z-10" />
 
 			<div className="absolute bottom-0 left-0 right-0 z-20 p-3 pointer-events-none">
-				<p className={`text-sm font-semibold line-clamp-2 leading-snug ${hasImage ? (wish.status === 'bought' ? 'text-white/50' : 'text-white') : wish.status === 'bought' ? 'text-[#aaa] dark:text-[#555]' : 'text-[#0a0a0a] dark:text-white'}`}>
-					{wish.text}
+				<p className={`text-sm font-semibold line-clamp-2 leading-snug ${hasImage ? (item.status === 'bought' ? 'text-white/50' : 'text-white') : item.status === 'bought' ? 'text-[#aaa] dark:text-[#555]' : 'text-[#0a0a0a] dark:text-white'}`}>
+					{item.text}
 				</p>
 				<div className="flex items-center gap-2 mt-1 flex-wrap">
-					<p className={`text-[11px] ${hasImage ? 'text-white/50' : 'text-[#999] dark:text-[#444]'}`}>{formatDate(wish.createdAt)}</p>
-					{wish.budget && (
-						<span className={`text-[11px] font-medium ${hasImage ? 'text-violet-300' : 'text-violet-600 dark:text-violet-400'}`}>₹ {wish.budget}</span>
+					<p className={`text-[11px] ${hasImage ? 'text-white/50' : 'text-[#999] dark:text-[#444]'}`}>{formatDate(item.createdAt)}</p>
+					{item.budget && (
+						<span className={`text-[11px] font-medium ${hasImage ? 'text-violet-300' : 'text-violet-600 dark:text-violet-400'}`}>₹ {item.budget}</span>
 					)}
 				</div>
 
@@ -189,7 +195,7 @@ function WishCard({ wish, onDelete }: {
 }
 
 function ManifestPage({ isSignedIn }: { isSignedIn: boolean }) {
-	const [wishes, setWishes] = useState<Wish[]>([]);
+	const [items, setItems] = useState<ManifestItem[]>([]);
 	const [input, setInput] = useState('');
 	const [isLoading, setIsLoading] = useState(true);
 	const [adding, setAdding] = useState(false);
@@ -197,6 +203,7 @@ function ManifestPage({ isSignedIn }: { isSignedIn: boolean }) {
 	const [phIdx, setPhIdx] = useState(0);
 	const [phVisible, setPhVisible] = useState(true);
 	const [inputFocused, setInputFocused] = useState(false);
+	const syncAttemptedRef = useRef(false);
 
 	useEffect(() => {
 		const timer = setInterval(() => {
@@ -206,16 +213,61 @@ function ManifestPage({ isSignedIn }: { isSignedIn: boolean }) {
 		return () => clearInterval(timer);
 	}, []);
 
+	const syncLocalWishesToCloud = useCallback(async () => {
+		const localItems = loadStorage().filter(isLocalManifestItem);
+
+		if (!isSignedIn || syncAttemptedRef.current || localItems.length === 0) {
+			return;
+		}
+
+		syncAttemptedRef.current = true;
+
+		try {
+			const responses = await Promise.all(
+				localItems.map(async item => {
+					const res = await fetch('/api/manifest', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({
+							text: item.text,
+							links: item.links || [],
+							image: item.image,
+							budget: item.budget,
+							timeline: item.timeline,
+							status: item.status,
+							priority: item.priority,
+							note: item.note,
+						}),
+					});
+
+					if (!res.ok) {
+						throw new Error(`Failed to sync local item: ${item.text}`);
+					}
+
+					return res.json();
+				})
+			);
+
+			if (responses.every(response => response?.data)) {
+				saveStorage(loadStorage().filter(item => !isLocalManifestItem(item)));
+			}
+		} catch (error) {
+			syncAttemptedRef.current = false;
+			console.error('Failed to sync local Manifest items after sign-in:', error);
+		}
+	}, [isSignedIn]);
+
 	const fetchWishes = useCallback(async () => {
 		setIsLoading(true);
 		try {
-			if (!isSignedIn) { setWishes(loadStorage()); return; }
-			const res = await fetch('/api/wishes');
+			if (!isSignedIn) { setItems(loadStorage()); return; }
+			await syncLocalWishesToCloud();
+			const res = await fetch('/api/manifest');
 			const json = await res.json();
-			setWishes(json.data || []);
-		} catch { setWishes(loadStorage()); }
+			setItems(json.data || []);
+		} catch { setItems(loadStorage()); }
 		finally { setIsLoading(false); }
-	}, [isSignedIn]);
+	}, [isSignedIn, syncLocalWishesToCloud]);
 
 	useEffect(() => { fetchWishes(); }, [fetchWishes]);
 
@@ -227,31 +279,31 @@ function ManifestPage({ isSignedIn }: { isSignedIn: boolean }) {
 		setInput('');
 		try {
 			if (!isSignedIn) {
-				const w: Wish = { id: `local-${Date.now()}`, text, links: [], createdAt: new Date().toISOString() };
-				const updated = [w, ...wishes];
-				setWishes(updated);
+				const item: ManifestItem = { id: `local-${Date.now()}`, text, links: [], createdAt: new Date().toISOString() };
+				const updated = [item, ...items];
+				setItems(updated);
 				saveStorage(updated);
 				return;
 			}
-			const res = await fetch('/api/wishes', {
+			const res = await fetch('/api/manifest', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ text }),
 			});
 			const json = await res.json();
-			if (json.data) setWishes(prev => [json.data, ...prev]);
+			if (json.data) setItems(prev => [json.data, ...prev]);
 		} finally { setAdding(false); inputRef.current?.focus(); }
 	};
 
-	const deleteWish = useCallback(async (wish: Wish) => {
-		const id = getId(wish);
-		setWishes(prev => {
-			const next = prev.filter(w => getId(w) !== id);
+	const deleteItem = useCallback(async (item: ManifestItem) => {
+		const id = getId(item);
+		setItems(prev => {
+			const next = prev.filter(existingItem => getId(existingItem) !== id);
 			if (!isSignedIn) saveStorage(next);
 			return next;
 		});
 		if (isSignedIn && !id.startsWith('local-')) {
-			await fetch(`/api/wishes/${id}`, { method: 'DELETE' });
+			await fetch(`/api/manifest/${id}`, { method: 'DELETE' });
 		}
 	}, [isSignedIn]);
 
@@ -311,7 +363,7 @@ function ManifestPage({ isSignedIn }: { isSignedIn: boolean }) {
 							<div key={i} className="h-52 rounded-xl bg-[#f0f0f0] dark:bg-[#111] animate-pulse" />
 						))}
 					</div>
-				) : wishes.length === 0 ? (
+				) : items.length === 0 ? (
 					<div className="py-32 flex flex-col items-center gap-3 text-center">
 						<ShoppingBag className="h-8 w-8 text-[#ccc] dark:text-[#333]" />
 						<p className="text-[#666] dark:text-[#555] text-sm">No entries yet</p>
@@ -319,19 +371,19 @@ function ManifestPage({ isSignedIn }: { isSignedIn: boolean }) {
 					</div>
 				) : (
 					<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-						{wishes.map(wish => (
-							<WishCard
-								key={getId(wish)}
-								wish={wish}
-								onDelete={() => deleteWish(wish)}
+						{items.map(item => (
+							<ManifestCard
+								key={getId(item)}
+								item={item}
+								onDelete={() => deleteItem(item)}
 							/>
 						))}
 					</div>
 				)}
 
-				{wishes.length > 0 && (
+				{items.length > 0 && (
 					<p className="text-center text-[11px] text-[#bbb] dark:text-[#333]">
-						{wishes.length} {wishes.length === 1 ? 'item' : 'items'}
+						{items.length} {items.length === 1 ? 'item' : 'items'}
 						{!isSignedIn && ' · saved locally'}
 					</p>
 				)}

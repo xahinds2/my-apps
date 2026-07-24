@@ -1,7 +1,17 @@
 import { NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db';
 import { getAuthUser } from '@/lib/authHelper';
-import Wish from '@/features/wish/models/Wish';
+import ManifestItem from '@/features/manifest/models/ManifestItem';
+
+function isValidUrl(url: unknown): boolean {
+  if (typeof url !== 'string') return false;
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
 
 export async function GET(
   _req: Request,
@@ -16,12 +26,12 @@ export async function GET(
       return NextResponse.json({ error: 'Database unavailable' }, { status: 503 });
     }
 
-    const wish = await Wish.findOne({ _id: id, userId }).lean();
-    if (!wish) {
+    const manifestItem = await ManifestItem.findOne({ _id: id, userId }).lean();
+    if (!manifestItem) {
       return NextResponse.json({ error: 'Manifest item not found' }, { status: 404 });
     }
 
-    return NextResponse.json({ data: wish });
+    return NextResponse.json({ data: manifestItem });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Internal Server Error';
     return NextResponse.json({ error: message }, { status: 500 });
@@ -41,8 +51,8 @@ export async function DELETE(
       return NextResponse.json({ success: true, source: 'mock' });
     }
 
-    const wish = await Wish.findOneAndDelete({ _id: id, userId });
-    if (!wish) {
+    const manifestItem = await ManifestItem.findOneAndDelete({ _id: id, userId });
+    if (!manifestItem) {
       return NextResponse.json({ error: 'Manifest item not found' }, { status: 404 });
     }
 
@@ -50,16 +60,6 @@ export async function DELETE(
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Internal Server Error';
     return NextResponse.json({ error: message }, { status: 500 });
-  }
-}
-
-function isValidUrl(url: unknown): boolean {
-  if (typeof url !== 'string') return false;
-  try {
-    const parsed = new URL(url);
-    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
-  } catch {
-    return false;
   }
 }
 
@@ -84,10 +84,10 @@ export async function PATCH(
       if (!Array.isArray(body.links)) {
         return NextResponse.json({ error: 'Links must be an array' }, { status: 400 });
       }
-      const sanitized = (body.links as { url: unknown; label?: unknown }[]).filter(l => isValidUrl(l.url));
-      update.links = sanitized.map(l => ({
-        url: l.url as string,
-        ...(typeof l.label === 'string' && l.label ? { label: l.label } : {}),
+      const sanitized = (body.links as { url: unknown; label?: unknown }[]).filter(link => isValidUrl(link.url));
+      update.links = sanitized.map(link => ({
+        url: link.url as string,
+        ...(typeof link.label === 'string' && link.label ? { label: link.label } : {}),
       }));
     }
 
@@ -122,17 +122,17 @@ export async function PATCH(
       return NextResponse.json({ source: 'mock', data: { _id: id, userId, ...update, createdAt: new Date().toISOString() } });
     }
 
-    const wish = await Wish.findOneAndUpdate(
+    const manifestItem = await ManifestItem.findOneAndUpdate(
       { _id: id, userId },
       { $set: update },
       { new: true }
     );
 
-    if (!wish) {
+    if (!manifestItem) {
       return NextResponse.json({ error: 'Manifest item not found' }, { status: 404 });
     }
 
-    return NextResponse.json({ source: 'database', data: wish });
+    return NextResponse.json({ source: 'database', data: manifestItem });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Internal Server Error';
     return NextResponse.json({ error: message }, { status: 500 });
