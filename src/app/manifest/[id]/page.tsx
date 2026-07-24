@@ -197,12 +197,12 @@ function ManifestDetailPage({ wishId, isSignedIn }: { wishId: string; isSignedIn
 	if (loading) return (
 		<div className="min-h-screen flex flex-col">
 			<header className="sticky top-0 z-40 w-full border-b border-[#e0e0e0] dark:border-[#222] bg-white/90 dark:bg-black/90 backdrop-blur-md">
-				<div className="max-w-2xl mx-auto px-6 h-14 flex items-center justify-between">
+				<div className="max-w-4xl mx-auto px-6 h-14 flex items-center justify-between">
 					<Link href="/manifest" className="flex items-center gap-2 text-sm text-[#999] hover:text-[#0a0a0a] dark:hover:text-white transition"><ArrowLeft className="h-4 w-4" /> Manifest</Link>
 					<AuthButton />
 				</div>
 			</header>
-			<main className="max-w-2xl mx-auto w-full px-6 py-10 space-y-4">
+			<main className="max-w-4xl mx-auto w-full px-6 py-10 space-y-4">
 				<div className="h-7 w-48 rounded-lg bg-[#f0f0f0] dark:bg-[#111] animate-pulse" />
 				{[1, 2, 3].map(i => <div key={i} className="h-16 rounded-xl bg-[#f0f0f0] dark:bg-[#111] animate-pulse" />)}
 			</main>
@@ -222,7 +222,7 @@ function ManifestDetailPage({ wishId, isSignedIn }: { wishId: string; isSignedIn
 	return (
 		<div className="min-h-screen flex flex-col">
 			<header className="sticky top-0 z-40 w-full border-b border-[#e0e0e0] dark:border-[#222] bg-white/90 dark:bg-black/90 backdrop-blur-md">
-				<div className="max-w-2xl mx-auto px-6 h-14 flex items-center justify-between">
+				<div className="max-w-4xl mx-auto px-6 h-14 flex items-center justify-between">
 					<Link href="/manifest" className="flex items-center gap-2 text-sm text-[#999] hover:text-[#0a0a0a] dark:hover:text-white transition">
 						<ArrowLeft className="h-4 w-4" /> Manifest
 					</Link>
@@ -233,7 +233,7 @@ function ManifestDetailPage({ wishId, isSignedIn }: { wishId: string; isSignedIn
 				</div>
 			</header>
 
-			<main className="flex-grow max-w-2xl mx-auto w-full px-6 py-8 space-y-8">
+			<main className="flex-grow max-w-4xl mx-auto w-full px-6 py-8 space-y-8">
 				<div
 					className="relative w-full aspect-[16/9] rounded-2xl overflow-hidden bg-[#f5f5f5] dark:bg-[#111] border border-[#e5e5e5] dark:border-[#1e1e1e] flex items-center justify-center cursor-pointer group"
 					onClick={() => { setImageInput(wish.image || ''); setIsEditingImage(true); }}
