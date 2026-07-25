@@ -28,12 +28,12 @@ const APPS = [
     badge: '',
   },
   {
-    num: '04', name: 'Finance', slug: null, live: false,
+    num: '04', name: 'Finance', slug: '/finance', live: true,
     icon: BarChart2,
-    desc: 'Monthly income and expense tracker. Set savings goals and see exactly where your money goes.',
+    desc: 'Monthly budget planner. Set income, build your category allocations, and track where every rupee is going.',
     accent: 'bg-blue-500',
     iconCls: 'bg-blue-500/10 border-blue-500/20 text-blue-400',
-    badge: '',
+    badge: 'bg-blue-500/10 border-blue-500/30 text-blue-400',
   },
   {
     num: '05', name: 'Travel', slug: null, live: false,
