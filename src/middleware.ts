@@ -32,7 +32,12 @@ function applyRateLimit(req: NextRequest): NextResponse | null {
   return null;
 }
 
-export default clerkMiddleware(async (_auth, req) => {
+export default clerkMiddleware(async (auth, req) => {
+  // Protect pages that require authentication
+  if (req.nextUrl.pathname.startsWith('/finance') || req.nextUrl.pathname.startsWith('/manifest')) {
+    await auth.protect();
+  }
+
   const rateLimitResponse = applyRateLimit(req);
   if (rateLimitResponse) return rateLimitResponse;
 });

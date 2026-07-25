@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '@clerk/nextjs';
-import { ChevronLeft, ChevronRight, Plus, Trash2, Check, X, ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Trash2, Check, X, ChevronDown, ChevronUp, Pencil } from 'lucide-react';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -370,96 +370,119 @@ export default function BudgetPlanner() {
 
   return (
     <div className="min-h-screen bg-[#f9f9f9] dark:bg-[#080808]">
-      <div className="max-w-xl mx-auto px-4 py-8 space-y-5">
+      <div className="max-w-6xl mx-auto px-4 py-6 space-y-4">
 
-        {/* ── Year nav + save status ── */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => handleYearChange(-1)}
-              className="p-1.5 rounded-lg hover:bg-[#eee] dark:hover:bg-[#1a1a1a] transition-colors text-[#666] dark:text-[#555]"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-            <span className="w-12 text-center text-sm font-semibold text-[#111] dark:text-white tabular-nums">
-              {activeYear}
-            </span>
-            <button
-              onClick={() => handleYearChange(1)}
-              className="p-1.5 rounded-lg hover:bg-[#eee] dark:hover:bg-[#1a1a1a] transition-colors text-[#666] dark:text-[#555]"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
-            {(activeYear !== nowYear || activeMonth !== nowMonth) && (
-              <button
-                onClick={() => { setActiveYear(nowYear); setActiveMonth(nowMonth); }}
-                className="ml-1 px-2 py-1 rounded-full text-[10px] font-medium bg-[#0a0a0a] text-white dark:bg-white dark:text-black hover:opacity-80 transition-opacity"
-              >
-                Today
-              </button>
-            )}
-          </div>
-          <span className={`text-xs transition-opacity duration-300 ${saving || savedFlash ? 'opacity-100' : 'opacity-0'}`}>
-            {saving
-              ? <span className="text-[#aaa] dark:text-[#555]">Saving…</span>
-              : <span className="text-emerald-500 font-medium">✓ Saved</span>
-            }
-          </span>
-        </div>
+        {/* ── Two-column: Charts | Categories ── */}
+        <div className="grid grid-cols-1 lg:grid-cols-[2fr_3fr] gap-5 items-start">
 
-        {/* ── Month strip ── */}
-        <div className="flex gap-1 overflow-x-auto pb-0.5 no-scrollbar">
-          {MONTHS.map((m, i) => (
-            <button
-              key={m}
-              onClick={() => setActiveMonth(i)}
-              className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-150 ${
-                i === activeMonth
-                  ? 'bg-[#0a0a0a] text-white dark:bg-white dark:text-black shadow-sm'
-                  : 'text-[#777] hover:text-[#111] hover:bg-[#eee] dark:text-[#555] dark:hover:text-white dark:hover:bg-[#1a1a1a]'
-              }`}
-            >
-              {m}
-            </button>
-          ))}
-        </div>
+          {/* ── Left: Charts ── */}
+          <div className="hidden lg:flex flex-col gap-3 sticky top-[4rem]">
 
-        {/* ── Summary cards ── */}
-        <div className="grid grid-cols-3 gap-3">
-          <IncomeCard income={income} onSave={setIncome} />
+            {/* Left header — aligns with right year nav + month strip */}
+            <div className="space-y-3 px-0.5">
+              <div className="flex h-7 items-center justify-between">
+                <span className="text-sm font-semibold text-[#111] dark:text-white">Analytics</span>
+                <span className="text-[10px] font-semibold uppercase tracking-widest text-[#aaa] dark:text-[#555]">{activeYear}</span>
+              </div>
+              <div className="flex h-7 items-center gap-1.5">
+                <span className="text-[10px] font-medium uppercase tracking-wider text-[#aaa] dark:text-[#555]">Trends &amp; milestones</span>
+              </div>
+            </div>
 
-          <div className="bg-white dark:bg-[#0d0d0d] border border-[#e8e8e8] dark:border-[#1f1f1f] rounded-xl p-4">
-            <p className="text-[10px] font-medium text-[#aaa] dark:text-[#555] uppercase tracking-wider mb-2">Budgeted</p>
-            <p className="text-base font-bold text-[#111] dark:text-white leading-none">
-              {totalBudgeted > 0 ? fmtINR(totalBudgeted) : <span className="text-[#ccc] dark:text-[#333]">—</span>}
-            </p>
-            {income > 0 && totalBudgeted > 0 && (
-              <p className="text-[10px] text-[#aaa] dark:text-[#555] mt-1">{allocPct}% of income</p>
-            )}
+            <InsuranceTracker />
+            <CategoryTimeSeries plan={plan} activeMonth={activeMonth} onMonthClick={setActiveMonth} activeYear={activeYear} />
+            <MilestoneTracker />
           </div>
 
-          <div className={`rounded-xl p-4 border transition-colors ${
-            income === 0 || totalBudgeted === 0
-              ? 'bg-white dark:bg-[#0d0d0d] border-[#e8e8e8] dark:border-[#1f1f1f]'
-              : remaining >= 0
-                ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/40'
-                : 'bg-rose-50 dark:bg-rose-950/20 border-rose-200 dark:border-rose-900/40'
-          }`}>
-            <p className="text-[10px] font-medium text-[#aaa] dark:text-[#555] uppercase tracking-wider mb-2">Remaining</p>
-            <p className={`text-base font-bold leading-none ${
-              income === 0 || totalBudgeted === 0
-                ? 'text-[#ccc] dark:text-[#333]'
-                : remaining >= 0
-                  ? 'text-emerald-600 dark:text-emerald-400'
-                  : 'text-rose-500'
-            }`}>
-              {income === 0 || totalBudgeted === 0 ? '—' : fmtINR(Math.abs(remaining))}
-            </p>
-            {income > 0 && totalBudgeted > 0 && remaining < 0 && (
-              <p className="text-[10px] text-rose-400 mt-1">Over budget</p>
-            )}
-          </div>
-        </div>
+          {/* ── Right: Categories ── */}
+          <div className="space-y-3">
+
+            {/* ── Year nav + save status ── */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => handleYearChange(-1)}
+                  className="p-1.5 rounded-lg hover:bg-[#eee] dark:hover:bg-[#1a1a1a] transition-colors text-[#666] dark:text-[#555]"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <span className="w-12 text-center text-sm font-semibold text-[#111] dark:text-white tabular-nums">
+                  {activeYear}
+                </span>
+                <button
+                  onClick={() => handleYearChange(1)}
+                  className="p-1.5 rounded-lg hover:bg-[#eee] dark:hover:bg-[#1a1a1a] transition-colors text-[#666] dark:text-[#555]"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+                {(activeYear !== nowYear || activeMonth !== nowMonth) && (
+                  <button
+                    onClick={() => { setActiveYear(nowYear); setActiveMonth(nowMonth); }}
+                    className="ml-1 px-2 py-1 rounded-full text-[10px] font-medium bg-[#0a0a0a] text-white dark:bg-white dark:text-black hover:opacity-80 transition-opacity"
+                  >
+                    Today
+                  </button>
+                )}
+              </div>
+              <span className={`text-xs transition-opacity duration-300 ${saving || savedFlash ? 'opacity-100' : 'opacity-0'}`}>
+                {saving
+                  ? <span className="text-[#aaa] dark:text-[#555]">Saving…</span>
+                  : <span className="text-emerald-500 font-medium">✓ Saved</span>
+                }
+              </span>
+            </div>
+
+            {/* ── Month strip ── */}
+            <div className="flex gap-1 overflow-x-auto pb-0.5 no-scrollbar">
+              {MONTHS.map((m, i) => (
+                <button
+                  key={m}
+                  onClick={() => setActiveMonth(i)}
+                  className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-150 ${
+                    i === activeMonth
+                      ? 'bg-[#0a0a0a] text-white dark:bg-white dark:text-black shadow-sm'
+                      : 'text-[#777] hover:text-[#111] hover:bg-[#eee] dark:text-[#555] dark:hover:text-white dark:hover:bg-[#1a1a1a]'
+                  }`}
+                >
+                  {m}
+                </button>
+              ))}
+            </div>
+
+            {/* ── Summary cards ── */}
+            <div className="grid grid-cols-3 gap-3">
+              <IncomeCard income={income} onSave={setIncome} />
+              <div className="bg-white dark:bg-[#0d0d0d] border border-[#e8e8e8] dark:border-[#1f1f1f] rounded-xl p-4">
+                <p className="text-[10px] font-medium text-[#aaa] dark:text-[#555] uppercase tracking-wider mb-2">Budgeted</p>
+                <p className="text-base font-bold text-[#111] dark:text-white leading-none">
+                  {totalBudgeted > 0 ? fmtINR(totalBudgeted) : <span className="text-[#ccc] dark:text-[#333]">—</span>}
+                </p>
+                {income > 0 && totalBudgeted > 0 && (
+                  <p className="text-[10px] text-[#aaa] dark:text-[#555] mt-1">{allocPct}% of income</p>
+                )}
+              </div>
+              <div className={`rounded-xl p-4 border transition-colors ${
+                income === 0 || totalBudgeted === 0
+                  ? 'bg-white dark:bg-[#0d0d0d] border-[#e8e8e8] dark:border-[#1f1f1f]'
+                  : remaining >= 0
+                    ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/40'
+                    : 'bg-rose-50 dark:bg-rose-950/20 border-rose-200 dark:border-rose-900/40'
+              }`}>
+                <p className="text-[10px] font-medium text-[#aaa] dark:text-[#555] uppercase tracking-wider mb-2">Remaining</p>
+                <p className={`text-base font-bold leading-none ${
+                  income === 0 || totalBudgeted === 0
+                    ? 'text-[#ccc] dark:text-[#333]'
+                    : remaining >= 0
+                      ? 'text-emerald-600 dark:text-emerald-400'
+                      : 'text-rose-500'
+                }`}>
+                  {income === 0 || totalBudgeted === 0 ? '—' : fmtINR(Math.abs(remaining))}
+                </p>
+                {income > 0 && totalBudgeted > 0 && remaining < 0 && (
+                  <p className="text-[10px] text-rose-400 mt-1">Over budget</p>
+                )}
+              </div>
+            </div>
 
         {/* ── Loading skeletons ── */}
         {loading && (
@@ -679,6 +702,9 @@ export default function BudgetPlanner() {
             )}
           </div>
         )}
+          </div>{/* end right categories */}
+
+        </div>{/* end two-column grid */}
       </div>
       {!!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY && (
         <GuestMigration guestIdRef={guestIdRef} onMigrated={reloadAfterMigration} />
@@ -687,7 +713,611 @@ export default function BudgetPlanner() {
   );
 }
 
+// ─── CategoryTimeSeries ─────────────────────────────────────────────────────
+
+const COLOR_HEX: Record<Color, string> = {
+  blue:   '#60a5fa',
+  green:  '#34d399',
+  red:    '#fb7185',
+  purple: '#c084fc',
+  yellow: '#fbbf24',
+  gray:   '#94a3b8',
+};
+
+function CategoryTimeSeries({
+  plan,
+  activeMonth,
+  onMonthClick,
+  activeYear,
+}: {
+  plan: BudgetPlanDoc;
+  activeMonth: number;
+  onMonthClick: (m: number) => void;
+  activeYear: number;
+}) {
+  const W = 400, H = 190;
+  const PAD = { t: 20, r: 12, b: 32, l: 44 };
+  const chartW = W - PAD.l - PAD.r;
+  const chartH = H - PAD.t - PAD.b;
+
+  const seriesData = plan.categories
+    .filter(cat => cat.items.some(item => item.amounts.some(a => a > 0)))
+    .map(cat => ({
+      cat,
+      values: MONTHS.map((_, mi) =>
+        cat.items.reduce((s, item) => s + (item.amounts[mi] ?? 0), 0)
+      ),
+    }));
+
+  const allValues = seriesData.flatMap(s => s.values);
+  const rawMax = Math.max(...allValues, 1);
+  const niceMax = (() => {
+    if (rawMax <= 10000) return 10000;
+    if (rawMax <= 50000) return Math.ceil(rawMax / 10000) * 10000;
+    if (rawMax <= 200000) return Math.ceil(rawMax / 50000) * 50000;
+    return Math.ceil(rawMax / 100000) * 100000;
+  })();
+
+  const xScale = (i: number) => PAD.l + (i / 11) * chartW;
+  const yScale = (v: number) => PAD.t + chartH - (v / niceMax) * chartH;
+
+  const yTicks = [0, 0.25, 0.5, 0.75, 1].map(f => Math.round(f * niceMax));
+
+  function fmtAxisVal(n: number): string {
+    if (n >= 100000) return `${(n / 100000).toFixed(0)}L`;
+    if (n >= 1000) return `${(n / 1000).toFixed(0)}k`;
+    return String(n);
+  }
+
+  const isEmpty = seriesData.length === 0;
+
+  return (
+    <div className="bg-white dark:bg-[#0d0d0d] border border-[#e8e8e8] dark:border-[#1f1f1f] rounded-2xl p-4">
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-xs font-semibold text-[#111] dark:text-white">Category Trends</p>
+        <p className="text-[10px] text-[#aaa] dark:text-[#555]">{activeYear}</p>
+      </div>
+
+      {isEmpty ? (
+        <div className="flex items-center justify-center h-[150px] text-xs text-[#bbb] dark:text-[#444]">
+          Add categories &amp; amounts to see trends
+        </div>
+      ) : (
+        <>
+          <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: '175px' }}>
+            {/* Y grid lines + labels */}
+            {yTicks.map(v => {
+              const y = yScale(v);
+              return (
+                <g key={v}>
+                  <line
+                    x1={PAD.l} y1={y} x2={W - PAD.r} y2={y}
+                    stroke="#e8e8e8" strokeWidth={1}
+                    className="dark:stroke-[#1f1f1f]"
+                  />
+                  <text x={PAD.l - 5} y={y + 3.5} textAnchor="end" fontSize={8.5} fill="#bbb">
+                    {fmtAxisVal(v)}
+                  </text>
+                </g>
+              );
+            })}
+
+            {/* Active month vertical indicator */}
+            <line
+              x1={xScale(activeMonth)} y1={PAD.t}
+              x2={xScale(activeMonth)} y2={PAD.t + chartH}
+              stroke="#3b82f6" strokeWidth={1} strokeDasharray="3,3" opacity={0.7}
+            />
+
+            {/* Category polylines + dots */}
+            {seriesData.map(({ cat, values }) => {
+              const hex = COLOR_HEX[cat.color] ?? '#94a3b8';
+              const points = values.map((v, i) => `${xScale(i)},${yScale(v)}`).join(' ');
+              return (
+                <g key={cat.id}>
+                  <polyline
+                    points={points}
+                    fill="none"
+                    stroke={hex}
+                    strokeWidth={1.75}
+                    strokeLinejoin="round"
+                    strokeLinecap="round"
+                  />
+                  <circle
+                    cx={xScale(activeMonth)}
+                    cy={yScale(values[activeMonth] ?? 0)}
+                    r={3.5}
+                    fill={hex}
+                    stroke="white"
+                    strokeWidth={1.5}
+                  />
+                </g>
+              );
+            })}
+
+            {/* X axis month labels */}
+            {MONTHS.map((m, i) => (
+              <text
+                key={m}
+                x={xScale(i)}
+                y={H - 4}
+                textAnchor="middle"
+                fontSize={8.5}
+                fill={i === activeMonth ? '#3b82f6' : '#bbb'}
+                style={{ cursor: 'pointer', fontWeight: i === activeMonth ? 600 : 400 }}
+                onClick={() => onMonthClick(i)}
+              >
+                {m}
+              </text>
+            ))}
+          </svg>
+
+          {/* Legend */}
+          <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1 pt-2 border-t border-[#f0f0f0] dark:border-[#1a1a1a]">
+            {seriesData.map(({ cat }) => (
+              <div key={cat.id} className="flex items-center gap-1.5">
+                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: COLOR_HEX[cat.color] ?? '#94a3b8' }} />
+                <span className="text-[10px] text-[#777] dark:text-[#555]">{cat.name}</span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── MilestoneTracker ─────────────────────────────────────────────────────────
+
+const MILESTONE_COLORS = ['#60a5fa', '#34d399', '#fb7185', '#c084fc', '#fbbf24', '#94a3b8'];
+
+const DEFAULT_MILESTONES: MilestoneItem[] = [
+  { id: 'car',       label: 'Car Fund',       current: 200000, goal: 500000, color: '#60a5fa' },
+  { id: 'emergency', label: 'Emergency Fund',  current: 150000, goal: 300000, color: '#34d399' },
+  { id: 'vacation',  label: 'Trip 2026',       current: 45000,  goal: 100000, color: '#c084fc' },
+];
+
+interface MilestoneItem {
+  id: string;
+  label: string;
+  current: number;
+  goal: number;
+  color: string;
+}
+
+function MilestoneTracker() {
+  const [milestones, setMilestones] = useState<MilestoneItem[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({ label: '', current: '', goal: '', color: '' });
+  const [showAdd, setShowAdd] = useState(false);
+  const [addForm, setAddForm] = useState({ label: '', current: '', goal: '', color: MILESTONE_COLORS[0] });
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    fetch('/api/milestones')
+      .then(r => r.json())
+      .then(json => {
+        setMilestones(Array.isArray(json.milestones) && json.milestones.length > 0
+          ? json.milestones
+          : DEFAULT_MILESTONES);
+      })
+      .catch(() => setMilestones(DEFAULT_MILESTONES))
+      .finally(() => setLoaded(true));
+  }, []);
+
+  useEffect(() => {
+    if (!loaded) return;
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      fetch('/api/milestones', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ milestones }),
+      }).catch(() => {});
+    }, 800);
+    return () => { if (saveTimer.current) clearTimeout(saveTimer.current); };
+  }, [milestones, loaded]);
+
+  function fmtAmt(n: number): string {
+    if (n >= 100000) return `₹${(n / 100000) % 1 === 0 ? (n / 100000).toFixed(0) : (n / 100000).toFixed(1)}L`;
+    if (n >= 1000) return `₹${(n / 1000).toFixed(0)}k`;
+    return `₹${n}`;
+  }
+
+  function startEdit(m: MilestoneItem) {
+    setEditingId(m.id);
+    setEditForm({ label: m.label, current: String(m.current), goal: String(m.goal), color: m.color });
+  }
+
+  function commitEdit() {
+    if (!editForm.label.trim() || !editForm.goal.trim()) return;
+    setMilestones(prev => prev.map(m =>
+      m.id === editingId
+        ? { ...m, label: editForm.label.trim(), current: parseAmount(editForm.current), goal: Math.max(1, parseAmount(editForm.goal)), color: editForm.color }
+        : m
+    ));
+    setEditingId(null);
+  }
+
+  function submitAdd() {
+    if (!addForm.label.trim() || !addForm.goal.trim()) return;
+    setMilestones(prev => [...prev, {
+      id: nanoid(),
+      label: addForm.label.trim(),
+      current: parseAmount(addForm.current),
+      goal: Math.max(1, parseAmount(addForm.goal)),
+      color: addForm.color,
+    }]);
+    setAddForm({ label: '', current: '', goal: '', color: MILESTONE_COLORS[0] });
+    setShowAdd(false);
+  }
+
+  const inputCls = 'text-xs bg-white dark:bg-[#151515] border border-[#e0e0e0] dark:border-[#2a2a2a] rounded-lg px-2.5 py-1.5 outline-none focus:border-[#bbb] dark:focus:border-[#444] text-[#111] dark:text-white placeholder-[#bbb] dark:placeholder-[#555]';
+
+  return (
+    <div className="bg-white dark:bg-[#0d0d0d] border border-[#e8e8e8] dark:border-[#1f1f1f] rounded-2xl p-4 space-y-4">
+      <p className="text-xs font-semibold text-[#111] dark:text-white">Goals &amp; Milestones</p>
+
+      {!loaded ? (
+        <div className="space-y-3">
+          {(['w-[72px]', 'w-[88px]', 'w-[60px]'] as const).map((w, i) => (
+            <div key={i} className="space-y-1.5">
+              <div className="flex justify-between">
+                <div className={`h-3 ${w} rounded bg-[#f0f0f0] dark:bg-[#1a1a1a] animate-pulse`} />
+                <div className="h-3 w-14 rounded bg-[#f0f0f0] dark:bg-[#1a1a1a] animate-pulse" />
+              </div>
+              <div className="h-1.5 w-full rounded-full bg-[#f0f0f0] dark:bg-[#1a1a1a] animate-pulse" />
+            </div>
+          ))}
+        </div>
+      ) : milestones.map(m => {
+        const pct = Math.min(100, Math.round((m.current / m.goal) * 100));
+
+        if (editingId === m.id) {
+          return (
+            <div key={m.id} className="space-y-2 rounded-xl bg-[#f8f8f8] dark:bg-[#111] p-3">
+              <input
+                autoFocus
+                value={editForm.label}
+                onChange={e => setEditForm(f => ({ ...f, label: e.target.value }))}
+                placeholder="Goal name"
+                maxLength={60}
+                className={`w-full ${inputCls}`}
+                onKeyDown={e => { if (e.key === 'Enter') commitEdit(); if (e.key === 'Escape') setEditingId(null); }}
+              />
+              <div className="grid grid-cols-2 gap-2">
+                <input value={editForm.current} onChange={e => setEditForm(f => ({ ...f, current: e.target.value }))} placeholder="Current (₹)" className={inputCls}
+                  onKeyDown={e => { if (e.key === 'Enter') commitEdit(); if (e.key === 'Escape') setEditingId(null); }} />
+                <input value={editForm.goal} onChange={e => setEditForm(f => ({ ...f, goal: e.target.value }))} placeholder="Goal (₹)" className={inputCls}
+                  onKeyDown={e => { if (e.key === 'Enter') commitEdit(); if (e.key === 'Escape') setEditingId(null); }} />
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="flex gap-1.5">
+                  {MILESTONE_COLORS.map(c => (
+                    <button key={c} onClick={() => setEditForm(f => ({ ...f, color: c }))}
+                      className="w-4 h-4 rounded-full transition-all"
+                      style={{ backgroundColor: c, outline: editForm.color === c ? `2px solid ${c}` : 'none', outlineOffset: '2px', opacity: editForm.color === c ? 1 : 0.4 }} />
+                  ))}
+                </div>
+                <div className="flex gap-1.5">
+                  <button onClick={() => setEditingId(null)} className="px-2.5 py-1 rounded-lg text-xs text-[#aaa] hover:bg-[#eee] dark:hover:bg-[#1a1a1a] transition-colors">Cancel</button>
+                  <button onClick={commitEdit} className="px-2.5 py-1 rounded-lg bg-[#111] dark:bg-white text-white dark:text-black text-xs font-medium hover:opacity-80 transition-opacity">Save</button>
+                </div>
+              </div>
+            </div>
+          );
+        }
+
+        return (
+          <div key={m.id} className="group/ms space-y-1.5">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: m.color }} />
+              <span className="flex-1 text-xs text-[#444] dark:text-[#aaa] font-medium truncate">{m.label}</span>
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                <span className="text-[10px] tabular-nums text-[#888] dark:text-[#555]">{fmtAmt(m.current)} / {fmtAmt(m.goal)}</span>
+                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ backgroundColor: m.color + '22', color: m.color }}>{pct}%</span>
+                <div className="flex items-center opacity-0 group-hover/ms:opacity-100 transition-opacity">
+                  <button onClick={() => startEdit(m)} className="p-1 rounded text-[#ccc] dark:text-[#444] hover:text-[#555] dark:hover:text-[#aaa] transition-colors" title="Edit">
+                    <Pencil className="h-3 w-3" />
+                  </button>
+                  <button onClick={() => setMilestones(prev => prev.filter(x => x.id !== m.id))} className="p-1 rounded text-[#ccc] dark:text-[#444] hover:text-rose-400 transition-colors" title="Delete">
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div className="h-2 rounded-full bg-[#f0f0f0] dark:bg-[#1a1a1a] overflow-hidden">
+              <div className="h-full rounded-full transition-all duration-700" style={{ width: `${pct}%`, backgroundColor: m.color }} />
+            </div>
+          </div>
+        );
+      })}
+
+      {showAdd ? (
+        <div className="space-y-2 rounded-xl bg-[#f8f8f8] dark:bg-[#111] p-3">
+          <input
+            autoFocus
+            value={addForm.label}
+            onChange={e => setAddForm(f => ({ ...f, label: e.target.value }))}
+            placeholder="Goal name…"
+            maxLength={60}
+            className={`w-full ${inputCls}`}
+            onKeyDown={e => { if (e.key === 'Enter') submitAdd(); if (e.key === 'Escape') setShowAdd(false); }}
+          />
+          <div className="grid grid-cols-2 gap-2">
+            <input value={addForm.current} onChange={e => setAddForm(f => ({ ...f, current: e.target.value }))} placeholder="Current (₹)" className={inputCls}
+              onKeyDown={e => { if (e.key === 'Enter') submitAdd(); if (e.key === 'Escape') setShowAdd(false); }} />
+            <input value={addForm.goal} onChange={e => setAddForm(f => ({ ...f, goal: e.target.value }))} placeholder="Goal (₹)" className={inputCls}
+              onKeyDown={e => { if (e.key === 'Enter') submitAdd(); if (e.key === 'Escape') setShowAdd(false); }} />
+          </div>
+          <div className="flex items-center justify-between">
+            <div className="flex gap-1.5">
+              {MILESTONE_COLORS.map(c => (
+                <button key={c} onClick={() => setAddForm(f => ({ ...f, color: c }))}
+                  className="w-4 h-4 rounded-full transition-all"
+                  style={{ backgroundColor: c, outline: addForm.color === c ? `2px solid ${c}` : 'none', outlineOffset: '2px', opacity: addForm.color === c ? 1 : 0.4 }} />
+              ))}
+            </div>
+            <div className="flex gap-1.5">
+              <button onClick={() => setShowAdd(false)} className="px-2.5 py-1 rounded-lg text-xs text-[#aaa] hover:bg-[#eee] dark:hover:bg-[#1a1a1a] transition-colors">Cancel</button>
+              <button onClick={submitAdd} disabled={!addForm.label.trim() || !addForm.goal.trim()}
+                className="px-2.5 py-1 rounded-lg bg-[#111] dark:bg-white text-white dark:text-black text-xs font-medium hover:opacity-80 transition-opacity disabled:opacity-30">
+                Add
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <button onClick={() => setShowAdd(true)}
+          className="w-full flex items-center justify-center gap-1.5 py-2 border border-dashed border-[#ddd] dark:border-[#222] rounded-xl text-xs text-[#aaa] dark:text-[#444] hover:border-[#bbb] dark:hover:border-[#333] hover:text-[#666] dark:hover:text-[#888] transition-all">
+          <Plus className="h-3.5 w-3.5" />
+          Add goal
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ─── InsuranceTracker ─────────────────────────────────────────────────────────
+
+interface InsurancePolicy {
+  id: string;
+  name: string;
+  type: string;
+  cover: string;
+  policy: string;
+  expiry: string;   // e.g. "Mar 2027", "Unlimited", or ""
+}
+
+const DEFAULT_POLICIES: InsurancePolicy[] = [
+  // Sahin Das (Self)
+  { id: 'ins1', name: 'Sahin Das', type: 'Term',       cover: '66L',  policy: 'Corporate',          expiry: 'Unlimited' },
+  { id: 'ins2', name: 'Sahin Das', type: 'Health',     cover: '5L',   policy: 'Corporate',          expiry: 'Unlimited' },
+  { id: 'ins3', name: 'Sahin Das', type: 'Accidental', cover: '—',    policy: 'Corporate',          expiry: 'Unlimited' },
+  { id: 'ins4', name: 'Sahin Das', type: 'Health',     cover: '10L',  policy: 'Aditya Activ One',   expiry: 'Unlimited' },
+  { id: 'ins5', name: 'Sahin Das', type: 'Term',       cover: '1 Cr', policy: '—',                  expiry: 'Unlimited' },
+  // Mother
+  { id: 'ins6', name: 'Mother',    type: 'Health',     cover: '10L',  policy: 'HDFC Optima Secure', expiry: 'Unlimited' },
+  // Brother
+  { id: 'ins7', name: 'Brother',   type: 'Health',     cover: '10L',  policy: 'Aditya Fit Plus',    expiry: 'Unlimited' },
+];
+
+const INS_TYPE_STYLE: Record<string, string> = {
+  Health:     'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+  Term:       'bg-blue-500/10 text-blue-600 dark:text-blue-400',
+  Life:       'bg-violet-500/10 text-violet-600 dark:text-violet-400',
+  Accidental: 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
+  Vehicle:    'bg-slate-500/10 text-slate-500 dark:text-slate-400',
+};
+
+type InsForm = { type: string; cover: string; policy: string; expiry: string };
+const blankInsForm = (): InsForm => ({ type: 'Health', cover: '', policy: '', expiry: 'Unlimited' });
+const insInpCls = 'w-full text-[11px] bg-white dark:bg-[#1a1a1a] border border-[#e0e0e0] dark:border-[#2a2a2a] rounded-md px-2 py-1 outline-none focus:border-[#bbb] dark:focus:border-[#444] text-[#111] dark:text-white placeholder-[#ccc] dark:placeholder-[#555]';
+
+function InsPolicyForm({ form, setForm, onSave, onCancel }: {
+  form: InsForm; setForm: (f: InsForm) => void; onSave: () => void; onCancel: () => void;
+}) {
+  return (
+    <div className="rounded-xl bg-[#f5f5f5] dark:bg-[#111] p-3 space-y-2">
+      <div className="flex gap-2">
+        <select value={form.type} onChange={e => setForm({ ...form, type: e.target.value })} className={`${insInpCls} w-[110px] flex-shrink-0`}>
+          {['Health', 'Term', 'Life', 'Accidental', 'Vehicle'].map(t => <option key={t}>{t}</option>)}
+        </select>
+        <input value={form.policy} onChange={e => setForm({ ...form, policy: e.target.value })} placeholder="Provider / policy name" className={insInpCls} />
+        <input value={form.cover} onChange={e => setForm({ ...form, cover: e.target.value })} placeholder="Cover (10L, 1Cr)" className={`${insInpCls} w-[76px] flex-shrink-0`} />
+      </div>
+      <input value={form.expiry} onChange={e => setForm({ ...form, expiry: e.target.value })} placeholder="Expiry (e.g. Mar 2027 or Unlimited)" className={insInpCls} />
+      <div className="flex justify-end gap-1.5">
+        <button onClick={onCancel} className="px-2.5 py-1 rounded-lg text-xs text-[#aaa] hover:bg-[#e8e8e8] dark:hover:bg-[#1a1a1a] transition-colors">Cancel</button>
+        <button onClick={onSave} className="px-2.5 py-1 rounded-lg bg-[#111] dark:bg-white text-white dark:text-black text-xs font-medium hover:opacity-80 transition-opacity">Save</button>
+      </div>
+    </div>
+  );
+}
+
+function InsuranceTracker() {
+  const [policies, setPolicies] = useState<InsurancePolicy[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<InsForm>(blankInsForm());
+  const [addingFor, setAddingFor] = useState<string | null>(null);
+  const [addForm, setAddForm] = useState<InsForm>(blankInsForm());
+  const [addingPerson, setAddingPerson] = useState(false);
+  const [newPersonName, setNewPersonName] = useState('');
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    fetch('/api/insurance')
+      .then(r => r.json())
+      .then(json => {
+        setPolicies(Array.isArray(json.policies) && json.policies.length > 0
+          ? json.policies
+          : DEFAULT_POLICIES);
+      })
+      .catch(() => setPolicies(DEFAULT_POLICIES))
+      .finally(() => setLoaded(true));
+  }, []);
+
+  useEffect(() => {
+    if (!loaded) return;
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      fetch('/api/insurance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ policies }),
+      }).catch(() => {});
+    }, 800);
+    return () => { if (saveTimer.current) clearTimeout(saveTimer.current); };
+  }, [policies, loaded]);
+
+  const personNames = policies.reduce<string[]>((acc, p) => {
+    if (!acc.includes(p.name)) acc.push(p.name);
+    return acc;
+  }, []);
+
+  function commitEdit() {
+    setPolicies(prev => prev.map(p => p.id === editingId ? { ...p, ...editForm } : p));
+    setEditingId(null);
+  }
+
+  function submitAdd(personName: string) {
+    setPolicies(prev => [...prev, { id: nanoid(), name: personName, ...addForm }]);
+    setAddForm(blankInsForm());
+    setAddingFor(null);
+  }
+
+  const isNewPerson = addingFor !== null && !personNames.includes(addingFor);
+  const allGroupNames = isNewPerson ? [...personNames, addingFor] : personNames;
+
+  return (
+    <div className="bg-white dark:bg-[#0d0d0d] border border-[#e8e8e8] dark:border-[#1f1f1f] rounded-2xl p-4">
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-xs font-semibold text-[#111] dark:text-white">Insurance Coverage</p>
+      </div>
+
+      {!loaded ? (
+        <div className="space-y-2">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="rounded-xl border border-[#ececec] dark:border-[#1a1a1a] overflow-hidden">
+              <div className="px-3 py-1.5 bg-[#f8f8f8] dark:bg-[#111]">
+                <div className="h-3.5 w-20 rounded bg-[#e8e8e8] dark:bg-[#1f1f1f] animate-pulse" />
+              </div>
+              <div className="px-3 py-2 space-y-2">
+                {[1, 2].map(j => (
+                  <div key={j} className="flex gap-3">
+                    <div className="h-4 w-14 rounded-full bg-[#f0f0f0] dark:bg-[#1a1a1a] animate-pulse" />
+                    <div className="h-3 flex-1 rounded bg-[#f0f0f0] dark:bg-[#1a1a1a] animate-pulse mt-0.5" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+      <div className="space-y-2">
+        {allGroupNames.map(personName => {
+          const personPolicies = policies.filter(p => p.name === personName);
+          const isAddingHere = addingFor === personName;
+
+          return (
+            <div key={personName} className="rounded-xl border border-[#ececec] dark:border-[#1a1a1a] overflow-hidden">
+              {/* Person header */}
+              <div className="flex items-center justify-between px-3 py-1.5 bg-[#f8f8f8] dark:bg-[#111]">
+                <span className="text-xs font-semibold text-[#222] dark:text-[#ddd]">{personName}</span>
+                <div className="flex items-center gap-2">
+                  {!isAddingHere && (
+                    <button onClick={() => { setAddingFor(personName); setAddForm(blankInsForm()); }}
+                      className="flex items-center gap-0.5 text-[10px] text-[#aaa] dark:text-[#555] hover:text-[#555] dark:hover:text-[#aaa] transition-colors">
+                      <Plus className="h-3 w-3" /> Add
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Column labels */}
+              {personPolicies.length > 0 && (
+                <div className="grid grid-cols-[72px_1fr_44px_80px] gap-x-3 px-3 pt-1.5 pb-0.5">
+                  <span className="text-[9px] font-semibold uppercase tracking-wider text-[#ccc] dark:text-[#444]">Type</span>
+                  <span className="text-[9px] font-semibold uppercase tracking-wider text-[#ccc] dark:text-[#444]">Policy</span>
+                  <span className="text-[9px] font-semibold uppercase tracking-wider text-[#ccc] dark:text-[#444]">Cover</span>
+                  <span className="text-[9px] font-semibold uppercase tracking-wider text-[#ccc] dark:text-[#444]">Expiry</span>
+                </div>
+              )}
+
+              {/* Policy rows */}
+              <div className="divide-y divide-[#f5f5f5] dark:divide-[#111]">
+                {personPolicies.map(p => (
+                  <div key={p.id} className="group/ins">
+                    {editingId === p.id ? (
+                      <div className="p-2">
+                        <InsPolicyForm form={editForm} setForm={setEditForm} onSave={commitEdit} onCancel={() => setEditingId(null)} />
+                      </div>
+                    ) : (
+                      <div className="relative group/ins-row grid grid-cols-[72px_1fr_44px_80px] gap-x-3 items-center px-3 py-1.5 hover:bg-[#fafafa] dark:hover:bg-[#0f0f0f] transition-colors">
+                        <div>
+                          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${INS_TYPE_STYLE[p.type] ?? INS_TYPE_STYLE.Health}`}>{p.type}</span>
+                        </div>
+                        <span className="text-[11px] text-[#555] dark:text-[#888] truncate">{p.policy || '—'}</span>
+                        <span className="text-[11px] tabular-nums text-[#666] dark:text-[#888]">{p.cover || '—'}</span>
+                        <span className={`text-[10px] ${p.expiry === 'Unlimited' ? 'text-[#bbb] dark:text-[#555]' : p.expiry ? 'text-[#444] dark:text-[#aaa]' : 'text-[#ccc] dark:text-[#555]'}`}>{p.expiry || '—'}</span>
+                        <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-0.5 opacity-0 group-hover/ins:opacity-100 transition-opacity bg-[#fafafa] dark:bg-[#0f0f0f] rounded">
+                          <button onClick={() => { setEditingId(p.id); setEditForm({ type: p.type, cover: p.cover, policy: p.policy, expiry: p.expiry ?? 'Unlimited' }); }}
+                            className="p-0.5 rounded text-[#ccc] dark:text-[#444] hover:text-[#555] dark:hover:text-[#aaa] transition-colors">
+                            <Pencil className="h-3 w-3" />
+                          </button>
+                          <button onClick={() => setPolicies(prev => prev.filter(x => x.id !== p.id))}
+                            className="p-0.5 rounded text-[#ccc] dark:text-[#444] hover:text-rose-400 transition-colors">
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Add policy form */}
+              {isAddingHere && (
+                <div className="p-2 border-t border-[#ececec] dark:border-[#1a1a1a]">
+                  <InsPolicyForm form={addForm} setForm={setAddForm} onSave={() => submitAdd(personName)} onCancel={() => setAddingFor(null)} />
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        {/* Add person */}
+        {addingPerson ? (
+          <div className="flex items-center gap-2">
+            <input autoFocus value={newPersonName} onChange={e => setNewPersonName(e.target.value)}
+              placeholder="Person name…" maxLength={50} className={`flex-1 ${insInpCls}`}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && newPersonName.trim()) { setAddingFor(newPersonName.trim()); setAddForm(blankInsForm()); setAddingPerson(false); setNewPersonName(''); }
+                if (e.key === 'Escape') { setAddingPerson(false); setNewPersonName(''); }
+              }} />
+            <button onClick={() => { if (!newPersonName.trim()) return; setAddingFor(newPersonName.trim()); setAddForm(blankInsForm()); setAddingPerson(false); setNewPersonName(''); }}
+              className="px-2.5 py-1 rounded-lg bg-[#111] dark:bg-white text-white dark:text-black text-xs font-medium hover:opacity-80 transition-opacity flex-shrink-0">Next</button>
+            <button onClick={() => { setAddingPerson(false); setNewPersonName(''); }}
+              className="px-2.5 py-1 rounded-lg text-xs text-[#aaa] hover:bg-[#eee] dark:hover:bg-[#1a1a1a] transition-colors flex-shrink-0">Cancel</button>
+          </div>
+        ) : (
+          <button onClick={() => setAddingPerson(true)}
+            className="w-full flex items-center justify-center gap-1.5 py-2 border border-dashed border-[#ddd] dark:border-[#222] rounded-xl text-xs text-[#aaa] dark:text-[#444] hover:border-[#bbb] dark:hover:border-[#333] hover:text-[#666] dark:hover:text-[#888] transition-all">
+            <Plus className="h-3.5 w-3.5" />
+            Add person
+          </button>
+        )}
+      </div>
+      )}
+    </div>
+  );
+}
+
 // ─── IncomeCard ───────────────────────────────────────────────────────────────
+
+
 
 function IncomeCard({ income, onSave }: { income: number; onSave: (n: number) => void }) {
   const [editing, setEditing] = useState(false);
