@@ -5,7 +5,8 @@ import { useAuth, UserButton, SignInButton } from '@clerk/nextjs';
 const hasClerk = !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
 
 function AuthButtonInner() {
-  const { isSignedIn } = useAuth();
+  const { isSignedIn, isLoaded } = useAuth();
+  if (!isLoaded) return <div className="w-8 h-8" />;
   if (isSignedIn) return <UserButton />;
   return (
     <SignInButton mode="redirect">

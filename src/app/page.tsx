@@ -2,156 +2,144 @@ import Link from 'next/link';
 import { ShoppingBag, CreditCard, Activity, BarChart2, Map, ArrowUpRight } from 'lucide-react';
 import AuthButton from '@/components/AuthButton';
 
-const APPS = [
+const LIVE_APPS = [
   {
-    num: '01', name: 'Manifest', slug: '/manifest', live: true,
+    name: 'Manifest',
+    slug: '/manifest',
     icon: ShoppingBag,
-    desc: 'Track things you want. Paste store links and jump to them whenever you\u2019re ready to buy.',
-    accent: 'bg-violet-500',
+    desc: 'Track things you want. Paste store links and jump to them whenever you\'re ready to buy.',
     iconCls: 'bg-violet-500/10 border-violet-500/20 text-violet-400',
-    badge: 'bg-violet-500/10 border-violet-500/30 text-violet-400',
+    badge: 'bg-violet-500/10 border-violet-500/20 text-violet-400',
+    cardHover: 'hover:border-violet-300 dark:hover:border-violet-800',
   },
   {
-    num: '02', name: 'Flex Cards', slug: null, live: false,
-    icon: CreditCard,
-    desc: 'Manage all your credit cards in one place. Track benefits, cashback rates, and reward points.',
-    accent: 'bg-amber-500',
-    iconCls: 'bg-amber-500/10 border-amber-500/20 text-amber-400',
-    badge: '',
-  },
-  {
-    num: '03', name: 'Healthify', slug: null, live: false,
-    icon: Activity,
-    desc: 'Upload blood reports and track key health markers over time. Simple diet logging included.',
-    accent: 'bg-emerald-500',
-    iconCls: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400',
-    badge: '',
-  },
-  {
-    num: '04', name: 'Finance', slug: '/finance', live: true,
+    name: 'Finance',
+    slug: '/finance',
     icon: BarChart2,
-    desc: 'Monthly budget planner. Set income, build your category allocations, and track where every rupee is going.',
-    accent: 'bg-blue-500',
+    desc: 'Monthly budget planner. Set income, build category allocations, and track every rupee.',
     iconCls: 'bg-blue-500/10 border-blue-500/20 text-blue-400',
-    badge: 'bg-blue-500/10 border-blue-500/30 text-blue-400',
-  },
-  {
-    num: '05', name: 'Travel', slug: null, live: false,
-    icon: Map,
-    desc: 'Plan trips, save destinations, and organise your itineraries and packing lists.',
-    accent: 'bg-sky-500',
-    iconCls: 'bg-sky-500/10 border-sky-500/20 text-sky-400',
-    badge: '',
+    badge: 'bg-blue-500/10 border-blue-500/20 text-blue-400',
+    cardHover: 'hover:border-blue-300 dark:hover:border-blue-800',
   },
 ];
 
-const STACK = ['Next.js 15', 'TypeScript', 'MongoDB', 'Tailwind CSS', 'Clerk'];
-
-function AppCard({ num, name, slug, live, icon: Icon, desc, accent, iconCls, badge }: typeof APPS[number]) {
-  const inner = (
-    <>
-      {/* Color accent line */}
-      <div className={`h-px w-full ${accent} opacity-20 group-hover:opacity-50 transition-opacity duration-200`} />
-
-      <div className="p-5 space-y-4">
-        {/* Top row */}
-        <div className="flex items-center justify-between">
-          <span className="text-[10px] font-mono text-[#bbb] dark:text-[#2a2a2a]">{num}</span>
-          {live ? (
-            <span className={`text-[10px] font-semibold border px-2 py-0.5 rounded-full ${badge}`}>LIVE</span>
-          ) : (
-            <span className="text-[10px] font-mono border border-[#ddd] text-[#aaa] dark:border-[#222] dark:text-[#333] px-2 py-0.5 rounded-full">SOON</span>
-          )}
-        </div>
-
-        {/* Icon + arrow */}
-        <div className="flex items-start justify-between">
-          <div className={`p-2 border rounded-lg w-fit ${iconCls}`}>
-            <Icon className="h-4 w-4" />
-          </div>
-          {live && (
-            <ArrowUpRight className="h-4 w-4 text-[#bbb] dark:text-[#333] mt-0.5 transition-transform duration-200 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-[#888]" />
-          )}
-        </div>
-
-        {/* Text */}
-        <div className="space-y-1.5">
-          <h2 className="text-sm font-bold text-[#0a0a0a] dark:text-white">{name}</h2>
-          <p className="text-xs text-[#777] dark:text-[#444] leading-relaxed">{desc}</p>
-        </div>
-      </div>
-    </>
-  );
-
-  const base = 'group relative bg-[#f8f8f8] dark:bg-[#0a0a0a] border rounded-xl overflow-hidden transition-all duration-200';
-
-  if (live && slug) {
-    return (
-      <Link href={slug} className={`${base} border-[#e0e0e0] hover:border-[#c0c0c0] dark:border-[#2a2a2a] dark:hover:border-[#444]`}>
-        {inner}
-      </Link>
-    );
-  }
-  return <div className={`${base} border-[#efefef] dark:border-[#141414] opacity-50`}>{inner}</div>;
-}
+const SOON_APPS = [
+  {
+    name: 'Flex Cards',
+    icon: CreditCard,
+    desc: 'Manage credit cards, track benefits, cashback, and reward points.',
+    iconCls: 'bg-amber-500/10 border-amber-500/20 text-amber-400',
+  },
+  {
+    name: 'Healthify',
+    icon: Activity,
+    desc: 'Upload blood reports and track health markers over time.',
+    iconCls: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400',
+  },
+  {
+    name: 'Travel',
+    icon: Map,
+    desc: 'Plan trips, save destinations, and organise itineraries.',
+    iconCls: 'bg-sky-500/10 border-sky-500/20 text-sky-400',
+  },
+];
 
 export default function Landing() {
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col bg-[#fafafa] dark:bg-[#080808]">
+
       {/* Header */}
-      <header className="sticky top-0 z-40 w-full border-b border-[#e5e5e5] dark:border-[#1a1a1a] bg-white/90 dark:bg-black/90 backdrop-blur-md">
-        <div className="max-w-4xl mx-auto px-6 h-14 flex items-center justify-between">
-          <span className="text-sm font-semibold tracking-tight text-white">Sahin&apos;s Apps</span>
-          <div className="flex items-center gap-3">
-            <div className="hidden sm:flex items-center gap-1.5">
-              {STACK.map(s => (
-                <span key={s} className="text-[10px] text-[#aaa] dark:text-[#333] border border-[#e5e5e5] dark:border-[#1a1a1a] px-2 py-0.5 rounded-full font-mono">
-                  {s}
-                </span>
-              ))}
-            </div>
-            <AuthButton />
-          </div>
+      <header className="sticky top-0 z-40 w-full border-b border-[#e8e8e8] dark:border-[#161616] bg-[#fafafa]/80 dark:bg-[#080808]/80 backdrop-blur-md">
+        <div className="max-w-3xl mx-auto px-5 h-13 flex items-center justify-between">
+          <span className="text-sm font-bold text-[#0a0a0a] dark:text-white tracking-tight">Sahin&apos;s Apps</span>
+          <AuthButton />
         </div>
       </header>
 
       {/* Hero */}
-      <div className="max-w-4xl mx-auto w-full px-6 pt-16 pb-10">
-        <div className="space-y-4 max-w-lg">
-          <p className="text-[11px] font-mono text-[#aaa] dark:text-[#333] uppercase tracking-widest">
-            Personal software suite
-          </p>
-          <h1 className="text-4xl md:text-5xl font-black tracking-tight leading-[1.1]">
-            Tools built for<br />
-            <span className="text-[#ccc] dark:text-[#333]">everyday life.</span>
-          </h1>
-          <p className="text-[#666] dark:text-[#444] text-sm leading-relaxed">
-            A growing collection of minimal apps — each one does exactly one thing,
-            and does it well. Built as hobby projects, designed for real daily use.
-          </p>
-        </div>
+      <div className="max-w-3xl mx-auto w-full px-5 pt-12 pb-8">
+        <p className="text-[10px] font-mono text-[#bbb] dark:text-[#333] uppercase tracking-widest mb-3">Personal software suite</p>
+        <h1 className="text-3xl md:text-4xl font-black tracking-tight leading-tight text-[#0a0a0a] dark:text-white mb-3">
+          Tools built for<br />
+          <span className="text-[#ccc] dark:text-[#2a2a2a]">everyday life.</span>
+        </h1>
+        <p className="text-sm text-[#888] dark:text-[#444] leading-relaxed max-w-sm">
+          Minimal apps — each doing one thing well. Built for real daily use.
+        </p>
       </div>
 
-      {/* Grid */}
-      <main className="flex-grow max-w-4xl mx-auto w-full px-6 pb-16">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {APPS.map(app => <AppCard key={app.num} {...app} />)}
-        </div>
+      {/* Live Apps */}
+      <main className="flex-grow max-w-3xl mx-auto w-full px-5 pb-16 space-y-10">
+
+        <section>
+          <div className="flex items-center gap-2 mb-4">
+            <span className="text-[10px] font-mono font-semibold text-[#888] dark:text-[#444] uppercase tracking-widest">Live</span>
+            <div className="h-px flex-1 bg-[#e8e8e8] dark:bg-[#161616]" />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {LIVE_APPS.map(app => {
+              const Icon = app.icon;
+              return (
+                <Link
+                  key={app.name}
+                  href={app.slug}
+                  className={`group relative bg-white dark:bg-[#0d0d0d] border border-[#e8e8e8] dark:border-[#1f1f1f] ${app.cardHover} rounded-2xl p-5 flex flex-col gap-4 transition-all duration-200 shadow-sm hover:shadow-md dark:shadow-none`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className={`p-2 border rounded-xl ${app.iconCls}`}>
+                      <Icon className="h-4 w-4" />
+                    </div>
+                    <span className={`text-[10px] font-semibold border px-2.5 py-0.5 rounded-full ${app.badge}`}>LIVE</span>
+                  </div>
+                  <div className="space-y-1.5 flex-1">
+                    <div className="flex items-center justify-between">
+                      <h2 className="text-sm font-bold text-[#0a0a0a] dark:text-white">{app.name}</h2>
+                      <ArrowUpRight className="h-3.5 w-3.5 text-[#ccc] dark:text-[#333] transition-transform duration-150 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-[#888] dark:group-hover:text-[#666]" />
+                    </div>
+                    <p className="text-xs text-[#888] dark:text-[#444] leading-relaxed">{app.desc}</p>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+
+        <section>
+          <div className="flex items-center gap-2 mb-4">
+            <span className="text-[10px] font-mono font-semibold text-[#ccc] dark:text-[#222] uppercase tracking-widest">Coming soon</span>
+            <div className="h-px flex-1 bg-[#e8e8e8] dark:bg-[#161616]" />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+            {SOON_APPS.map(app => {
+              const Icon = app.icon;
+              return (
+                <div
+                  key={app.name}
+                  className="bg-[#f5f5f5] dark:bg-[#0a0a0a] border border-[#efefef] dark:border-[#141414] rounded-2xl p-4 flex flex-col gap-3 opacity-60"
+                >
+                  <div className={`p-1.5 border rounded-lg w-fit ${app.iconCls}`}>
+                    <Icon className="h-3.5 w-3.5" />
+                  </div>
+                  <div className="space-y-1">
+                    <h2 className="text-xs font-bold text-[#555] dark:text-[#333]">{app.name}</h2>
+                    <p className="text-[11px] text-[#aaa] dark:text-[#2a2a2a] leading-relaxed">{app.desc}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-[#ebebeb] dark:border-[#111] py-6">
-        <div className="max-w-4xl mx-auto px-6 flex items-center justify-between">
-          <p className="text-xs text-[#aaa] dark:text-[#2a2a2a]">Built as a hobby · always evolving</p>
-          <div className="flex sm:hidden items-center gap-1">
-            {STACK.map(s => (
-              <span key={s} className="text-[10px] text-[#aaa] dark:text-[#2a2a2a] border border-[#e5e5e5] dark:border-[#1a1a1a] px-2 py-0.5 rounded-full font-mono">
-                {s}
-              </span>
-            ))}
-          </div>
+      <footer className="border-t border-[#ebebeb] dark:border-[#111] py-5">
+        <div className="max-w-3xl mx-auto px-5">
+          <p className="text-[11px] text-[#bbb] dark:text-[#2a2a2a]">Built as a hobby · always evolving</p>
         </div>
       </footer>
+
     </div>
   );
 }
+
