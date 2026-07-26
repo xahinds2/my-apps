@@ -7,21 +7,22 @@ export default function Icon() {
   return new ImageResponse(
     <div
       style={{
-        background: '#0a0a0a',
+        background: '#0d0d0d',
         width: '100%',
         height: '100%',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        borderRadius: 8,
-        fontFamily: 'sans-serif',
-        fontWeight: 800,
-        fontSize: 18,
-        color: 'white',
-        letterSpacing: '-0.5px',
+        borderRadius: 7,
+        fontFamily: 'monospace',
+        fontWeight: 700,
+        fontSize: 14,
+        color: '#28c840',
+        letterSpacing: '0px',
+        gap: 1,
       }}
     >
-      S
+      $<span style={{ color: '#28c840', fontWeight: 400, opacity: 0.85 }}>_</span>
     </div>,
     { ...size },
   );

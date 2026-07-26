@@ -7,6 +7,12 @@ const APPS = [
 
 const COMING = ['Flex Cards', 'Healthify', 'Travel'];
 
+const SOCIAL = [
+	{ label: 'GitHub', href: 'https://github.com/xahinds2' },
+	{ label: 'LinkedIn', href: 'https://www.linkedin.com/in/xahinds2/' },
+	{ label: 'LeetCode', href: 'https://leetcode.com/xahinds2/' },
+];
+
 export default function Footer() {
 	return (
 		<footer className="w-full border-t border-[#e8e8e8] dark:border-[#1a1a1a] bg-white dark:bg-black">
@@ -41,6 +47,15 @@ export default function Footer() {
 							<p className="text-[10px] font-semibold uppercase tracking-widest text-[#bbb] dark:text-[#444]">Coming soon</p>
 							{COMING.map(name => (
 								<p key={name} className="text-xs text-[#ccc] dark:text-[#333]">{name}</p>
+							))}
+						</div>
+
+						<div className="space-y-3">
+							<p className="text-[10px] font-semibold uppercase tracking-widest text-[#bbb] dark:text-[#444]">Connect</p>
+							{SOCIAL.map(({ label, href }) => (
+								<a key={label} href={href} target="_blank" rel="noopener noreferrer" className="block text-xs text-[#555] dark:text-[#888] hover:text-[#0a0a0a] dark:hover:text-white transition font-medium">
+									{label}
+								</a>
 							))}
 						</div>
 					</div>

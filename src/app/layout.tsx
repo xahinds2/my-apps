@@ -10,7 +10,7 @@ import './globals.css';
 const geist = Geist({ subsets: ['latin'], variable: '--font-geist' });
 
 export const metadata: Metadata = {
-  title: 'Sahin\'s Apps',
+  title: 'Sahin Das',
   description: 'A personal suite of minimal tools — Manifest, cards, health, finance, and travel.',
 };
 
