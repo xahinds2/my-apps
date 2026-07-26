@@ -92,6 +92,7 @@ function ManifestDetailPage({ manifestItemId, isSignedIn }: { manifestItemId: st
 	const [linkInput, setLinkInput] = useState('');
 	const [savingLink, setSavingLink] = useState(false);
 	const linkRef = useRef<HTMLInputElement>(null);
+
 	const [isEditingImage, setIsEditingImage] = useState(false);
 	const [imageInput, setImageInput] = useState('');
 	const imageRef = useRef<HTMLInputElement>(null);
@@ -452,34 +453,7 @@ function ManifestDetailPage({ manifestItemId, isSignedIn }: { manifestItemId: st
 				<div className="space-y-3">
 					<div className="flex items-center justify-between">
 						<p className="text-xs font-semibold uppercase tracking-widest text-[#999] dark:text-[#444]">Shortlisted links</p>
-						<span className="text-[11px] text-[#bbb] dark:text-[#333]">{item.links.length} {item.links.length === 1 ? 'link' : 'links'}</span>
-					</div>
-
-					{item.links.length === 0 && !isAddingLink && (
-						<div className="py-8 flex flex-col items-center gap-2 text-center border border-dashed border-[#e0e0e0] dark:border-[#222] rounded-xl">
-							<Link2 className="h-5 w-5 text-[#ccc] dark:text-[#333]" />
-							<p className="text-xs text-[#bbb] dark:text-[#444]">No links yet — paste store URLs below</p>
-						</div>
-					)}
-
-					<div className="space-y-2">
-						{item.links.map((link, i) => (
-							<div key={i} className="flex items-center gap-2 group">
-								<a href={link.url} target="_blank" rel="noopener noreferrer"
-									className="flex items-center gap-3 flex-grow min-w-0 px-4 py-3 rounded-xl bg-[#f8f8f8] dark:bg-[#0d0d0d] border border-[#e5e5e5] dark:border-[#1e1e1e] hover:border-[#aaa] dark:hover:border-[#444] transition">
-									{/* eslint-disable-next-line @next/next/no-img-element */}
-									<img src={getFavicon(link.url)} alt="" className="h-5 w-5 rounded shrink-0" />
-									<div className="flex-grow min-w-0">
-										<p className="text-sm font-medium text-[#0a0a0a] dark:text-white">{link.label || getStoreLabel(link.url)}</p>
-										<p className="text-[11px] text-[#999] dark:text-[#444] truncate">{link.url}</p>
-									</div>
-									<ExternalLink className="h-4 w-4 text-[#ccc] dark:text-[#333] shrink-0" />
-								</a>
-								<button onClick={() => removeLink(i)} className="p-2 text-[#ccc] dark:text-[#333] hover:text-red-400 rounded-lg transition opacity-0 group-hover:opacity-100 shrink-0">
-									<X className="h-4 w-4" />
-								</button>
-							</div>
-						))}
+						{item.links.length > 0 && <span className="text-[11px] text-[#bbb] dark:text-[#333]">{item.links.length} {item.links.length === 1 ? 'link' : 'links'}</span>}
 					</div>
 
 					{isAddingLink ? (
@@ -502,6 +476,35 @@ function ManifestDetailPage({ manifestItemId, isSignedIn }: { manifestItemId: st
 							className="flex items-center gap-2 w-full px-4 py-3 rounded-xl border border-dashed border-[#d4d4d4] dark:border-[#2a2a2a] text-sm text-[#999] dark:text-[#444] hover:border-[#0a0a0a] hover:text-[#0a0a0a] dark:hover:border-white dark:hover:text-white transition">
 							<Plus className="h-4 w-4" /> Add store link
 						</button>
+					)}
+
+					{/* 2-column chips */}
+					{item.links.length > 0 && (
+						<div className="grid grid-cols-2 gap-2">
+							{item.links.map((link, i) => {
+								const hostname = (() => { try { return new URL(link.url).hostname.replace(/^www\./, ''); } catch { return ''; } })();
+								return (
+									<div key={i} className="group flex items-center gap-2.5 p-3 rounded-xl bg-[#f8f8f8] dark:bg-[#0d0d0d] border border-[#e5e5e5] dark:border-[#1e1e1e] hover:border-[#c8c8c8] dark:hover:border-[#2e2e2e] transition">
+										{/* eslint-disable-next-line @next/next/no-img-element */}
+										<img src={getFavicon(link.url)} alt="" className="h-6 w-6 rounded-md shrink-0" />
+										<div className="flex-grow min-w-0">
+											<p className="text-xs font-medium text-[#0a0a0a] dark:text-white truncate leading-tight">{link.label || getStoreLabel(link.url)}</p>
+											<p className="text-[10px] text-[#bbb] dark:text-[#444] truncate">{hostname}</p>
+										</div>
+										<div className="shrink-0 flex items-center gap-0.5">
+											<a href={link.url} target="_blank" rel="noopener noreferrer"
+												className="p-1 rounded text-[#bbb] dark:text-[#333] hover:text-[#0a0a0a] dark:hover:text-white transition">
+												<ExternalLink className="h-3 w-3" />
+											</a>
+											<button onClick={() => removeLink(i)}
+												className="p-1 rounded text-[#ccc] dark:text-[#333] hover:text-red-400 transition opacity-0 group-hover:opacity-100">
+												<X className="h-3 w-3" />
+											</button>
+										</div>
+									</div>
+								);
+							})}
+						</div>
 					)}
 				</div>
 			</main>

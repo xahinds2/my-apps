@@ -4,6 +4,7 @@ import { ClerkProvider } from '@clerk/nextjs';
 import { Analytics } from '@vercel/analytics/next';
 import ThemeProvider from '@/components/ThemeProvider';
 import ThemeToggle from '@/components/ThemeToggle';
+import Footer from '@/components/Footer';
 import './globals.css';
 
 const geist = Geist({ subsets: ['latin'], variable: '--font-geist' });
@@ -25,6 +26,7 @@ export default function RootLayout({
       <body className={`${geist.className} antialiased`}>
         <ThemeProvider>
           {children}
+          <Footer />
           <ThemeToggle />
           <Analytics />
         </ThemeProvider>

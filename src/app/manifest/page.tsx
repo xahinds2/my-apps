@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@clerk/nextjs';
 import AuthButton from '@/components/AuthButton';
-import { Plus, Trash2, ShoppingBag, Package, ChevronRight, Check } from 'lucide-react';
+import { Plus, Trash2, ShoppingBag, ChevronRight, Check } from 'lucide-react';
 
 interface ManifestLink {
 	url: string;
@@ -82,6 +82,17 @@ function loadStorage(): ManifestItem[] {
 
 function saveStorage(data: ManifestItem[]) { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
 
+function nameToHue(name: string): number {
+	let hash = 0;
+	for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+	return Math.abs(hash) % 360;
+}
+
+function getInitials(name: string): string {
+	const words = name.trim().split(/\s+/);
+	return words.length === 1 ? words[0].slice(0, 2).toUpperCase() : (words[0][0] + words[1][0]).toUpperCase();
+}
+
 function isLocalManifestItem(item: ManifestItem): boolean {
 	return getId(item).startsWith('local-');
 }
@@ -114,82 +125,113 @@ function ManifestCard({ item, onDelete }: {
 		setConfirmingDelete(false);
 	};
 
-	const hasImage = !!item.image;
+	const bought = item.status === 'bought';
+	const skipped = item.status === 'skipped';
 
 	return (
-		<div className={`group relative rounded-xl overflow-hidden border border-[#e5e5e5] dark:border-[#1e1e1e] transition-all duration-150 aspect-square ${deleting ? 'opacity-30 pointer-events-none' : 'hover:border-[#c0c0c0] dark:hover:border-[#333]'}`}>
-			{hasImage ? (
-				/* eslint-disable-next-line @next/next/no-img-element */
-				<img src={item.image} alt={item.text} className="absolute inset-0 w-full h-full object-cover" />
-			) : (
-				<div className="absolute inset-0 flex items-center justify-center bg-[#f5f5f5] dark:bg-[#111]">
-					<Package className="h-8 w-8 text-[#ddd] dark:text-[#2a2a2a]" />
-				</div>
-			)}
+		<div className={`group relative flex items-center gap-4 p-3 rounded-xl border bg-white dark:bg-[#0d0d0d] transition-all duration-150 ${deleting ? 'opacity-30 pointer-events-none' : ''} ${bought ? 'border-[#e5e5e5] dark:border-[#1e1e1e] hover:border-[#c8c8c8] dark:hover:border-[#2e2e2e]' : 'border-[#ececec] dark:border-[#181818] hover:border-[#d8d8d8] dark:hover:border-[#232323]'}`}>
 
-			{hasImage && (
-				<div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-			)}
+			{/* Thumbnail */}
+			<div className="relative shrink-0 w-20 h-20 rounded-lg overflow-hidden bg-[#f5f5f5] dark:bg-[#111]">
+				{item.image ? (
+					/* eslint-disable-next-line @next/next/no-img-element */
+					<img
+						src={item.image}
+						alt={item.text}
+						className="w-full h-full object-cover"
+					/>
+				) : (() => {
+					const hue = nameToHue(item.text);
+					return (
+						<div
+							className="w-full h-full flex items-center justify-center select-none"
+							style={{ background: `linear-gradient(135deg, hsl(${hue},30%,88%) 0%, hsl(${(hue + 40) % 360},25%,82%) 100%)` }}
+						>
+							<span
+								className="text-[15px] font-semibold tracking-tight"
+								style={{ color: `hsl(${hue},25%,38%)` }}
+							>
+								{getInitials(item.text)}
+							</span>
+						</div>
+					);
+				})()}
+				{item.priority && !bought && (
+					<span className="absolute bottom-1 right-1 text-xs leading-none drop-shadow-sm">{PRIORITY_ICON[item.priority]}</span>
+				)}
+				{bought && (
+					<div className="absolute bottom-1.5 right-1.5 w-5 h-5 rounded-full bg-emerald-500 dark:bg-emerald-600 flex items-center justify-center shadow-sm">
+						<Check className="h-3 w-3 text-white" />
+					</div>
+				)}
+			</div>
 
-			{item.priority && (
-				<span className="absolute top-3 left-3 text-lg leading-none z-20">{PRIORITY_ICON[item.priority]}</span>
-			)}
-			{item.status === 'bought' && (
-				<span className="absolute top-3 right-3 z-20 flex items-center gap-1 text-[10px] font-semibold pl-1.5 pr-2 py-0.5 rounded-full bg-black/50 backdrop-blur-sm text-emerald-400 border border-emerald-400/30">
-					<Check className="h-3 w-3" /> Got it
-				</span>
-			)}
-			{item.status === 'skipped' && (
-				<span className="absolute top-3 right-3 z-20 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-black/40 text-white/60">Skipped</span>
-			)}
-
-			<Link href={`/manifest/${id}`} className="absolute inset-0 z-10" />
-
-			<div className="absolute bottom-0 left-0 right-0 z-20 p-3 pointer-events-none">
-				<p className={`text-sm font-semibold line-clamp-2 leading-snug ${hasImage ? (item.status === 'bought' ? 'text-white/50' : 'text-white') : item.status === 'bought' ? 'text-[#aaa] dark:text-[#555]' : 'text-[#0a0a0a] dark:text-white'}`}>
+			{/* Content */}
+			<div className="flex-grow min-w-0 flex flex-col gap-1.5">
+				<p className={`text-sm font-medium leading-snug line-clamp-2 ${skipped ? 'text-[#bbb] dark:text-[#444]' : bought ? 'text-[#0a0a0a] dark:text-[#f0f0f0]' : 'text-[#999] dark:text-[#555]'}`}>
 					{item.text}
 				</p>
-				<div className="flex items-center gap-2 mt-1 flex-wrap">
-					<p className={`text-[11px] ${hasImage ? 'text-white/50' : 'text-[#999] dark:text-[#444]'}`}>{formatDate(item.createdAt)}</p>
+
+				<div className="flex items-center gap-1.5 flex-wrap">
 					{item.budget && (
-						<span className={`text-[11px] font-medium ${hasImage ? 'text-violet-300' : 'text-violet-600 dark:text-violet-400'}`}>₹ {item.budget}</span>
+						<span className={`text-[12px] font-semibold tabular-nums ${bought ? 'text-[#0a0a0a] dark:text-[#e0e0e0]' : 'text-[#bbb] dark:text-[#444]'}`}>
+							₹{Number(item.budget).toLocaleString('en-IN')}
+						</span>
 					)}
+					{item.budget && item.timeline && <span className="text-[#ddd] dark:text-[#2a2a2a]">·</span>}
+					{item.timeline && <span className="text-[11px] text-[#aaa] dark:text-[#555]">{item.timeline}</span>}
+					{(item.budget || item.timeline) && <span className="text-[#ddd] dark:text-[#2a2a2a]">·</span>}
+					<span className="text-[11px] text-[#bbb] dark:text-[#444]">{formatDate(item.createdAt)}</span>
 				</div>
 
 				{links.length > 0 && (
-					<div className="flex flex-wrap gap-1 mt-1.5">
+					<div className="flex items-center gap-3 flex-wrap">
 						{links.slice(0, 3).map((link, i) => (
-							<span key={i} className={`flex items-center gap-1 text-[11px] rounded px-1.5 py-0.5 ${hasImage ? 'bg-white/15 text-white/70' : 'text-[#888] dark:text-[#555] bg-white dark:bg-[#111] border border-[#e0e0e0] dark:border-[#2a2a2a]'}`}>
+							<span key={i} className="flex items-center gap-1 text-[11px] text-[#999] dark:text-[#555]">
 								{/* eslint-disable-next-line @next/next/no-img-element */}
-								<img src={getFavicon(link.url)} alt="" className="h-3 w-3 rounded-sm" />
+								<img src={getFavicon(link.url)} alt="" className="h-3 w-3 rounded-sm opacity-60" />
 								{link.label || getStoreLabel(link.url)}
 							</span>
 						))}
 						{links.length > 3 && (
-							<span className={`text-[11px] px-1 py-0.5 ${hasImage ? 'text-white/40' : 'text-[#bbb] dark:text-[#444]'}`}>+{links.length - 3}</span>
+							<span className="text-[11px] text-[#bbb] dark:text-[#444]">+{links.length - 3} more</span>
 						)}
 					</div>
 				)}
+			</div>
 
-				<div className="flex items-center justify-between mt-2">
-					<span className={`text-[11px] ${hasImage ? 'text-white/30' : 'text-[#bbb] dark:text-[#333]'}`}>
-						{links.length} {links.length === 1 ? 'link' : 'links'}
+			{/* Right actions */}
+			<div className="shrink-0 flex flex-col items-end gap-2 z-20">
+				{bought && (
+					<span className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/50 whitespace-nowrap">
+						<Check className="h-2.5 w-2.5" /> Got it
 					</span>
-					<div className="flex items-center gap-1 pointer-events-auto">
-						{confirmingDelete ? (
-							<>
-								<button onClick={handleCancelDelete} className={`text-[10px] px-1.5 py-0.5 rounded transition font-medium ${hasImage ? 'text-white/60 hover:text-white' : 'text-[#999] hover:text-[#555]'}`}>Cancel</button>
-								<button onClick={handleConfirmDelete} className="text-[10px] px-1.5 py-0.5 rounded bg-red-500 text-white font-medium transition hover:bg-red-600">Delete</button>
-							</>
-						) : (
-							<button onClick={handleDeleteClick} className={`p-1.5 rounded transition opacity-0 group-hover:opacity-100 ${hasImage ? 'text-white/40 hover:text-red-400' : 'text-[#ccc] dark:text-[#2a2a2a] hover:text-red-500 dark:hover:text-red-400'}`}>
-								<Trash2 className="h-3.5 w-3.5" />
+				)}
+				{skipped && (
+					<span className="text-[10px] text-[#bbb] dark:text-[#444]">Skipped</span>
+				)}
+
+				<div className="flex items-center gap-0.5 pointer-events-auto">
+					{confirmingDelete ? (
+						<>
+							<button onClick={handleCancelDelete} className="text-[10px] px-1.5 py-0.5 rounded text-[#999] hover:text-[#555] dark:text-[#555] dark:hover:text-[#999] transition font-medium">
+								Cancel
 							</button>
-						)}
-						<ChevronRight className={`h-3.5 w-3.5 ${hasImage ? 'text-white/30' : 'text-[#ccc] dark:text-[#2a2a2a]'}`} />
-					</div>
+							<button onClick={handleConfirmDelete} className="text-[10px] px-1.5 py-0.5 rounded bg-red-500 text-white font-medium transition hover:bg-red-600">
+								Delete
+							</button>
+						</>
+					) : (
+						<button onClick={handleDeleteClick} className="p-1.5 rounded text-[#d8d8d8] dark:text-[#2a2a2a] hover:text-red-500 dark:hover:text-red-400 opacity-0 group-hover:opacity-100 transition">
+							<Trash2 className="h-3.5 w-3.5" />
+						</button>
+					)}
+					<ChevronRight className="h-4 w-4 text-[#d0d0d0] dark:text-[#2a2a2a]" />
 				</div>
 			</div>
+
+			{/* Full-card link */}
+			<Link href={`/manifest/${id}`} className="absolute inset-0 z-10" />
 		</div>
 	);
 }
@@ -358,9 +400,16 @@ function ManifestPage({ isSignedIn }: { isSignedIn: boolean }) {
 				</form>
 
 				{isLoading ? (
-					<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+					<div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
 						{[1, 2, 3].map(i => (
-							<div key={i} className="h-52 rounded-xl bg-[#f0f0f0] dark:bg-[#111] animate-pulse" />
+							<div key={i} className="flex items-center gap-4 p-3 rounded-xl border border-[#e5e5e5] dark:border-[#1e1e1e] animate-pulse">
+								<div className="shrink-0 w-20 h-20 rounded-lg bg-[#f0f0f0] dark:bg-[#111]" />
+								<div className="flex-grow space-y-2.5">
+									<div className="h-3.5 rounded bg-[#f0f0f0] dark:bg-[#111] w-3/5" />
+									<div className="h-3 rounded bg-[#f0f0f0] dark:bg-[#111] w-1/4" />
+									<div className="h-3 rounded bg-[#f0f0f0] dark:bg-[#111] w-2/5" />
+								</div>
+							</div>
 						))}
 					</div>
 				) : items.length === 0 ? (
@@ -369,17 +418,33 @@ function ManifestPage({ isSignedIn }: { isSignedIn: boolean }) {
 						<p className="text-[#666] dark:text-[#555] text-sm">No entries yet</p>
 						<p className="text-[#999] dark:text-[#444] text-xs">Type anything above and press Add.</p>
 					</div>
-				) : (
-					<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-						{items.map(item => (
-							<ManifestCard
-								key={getId(item)}
-								item={item}
-								onDelete={() => deleteItem(item)}
-							/>
-						))}
-					</div>
-				)}
+				) : (() => {
+					const byNew = (a: ManifestItem, b: ManifestItem) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+					const pending = items.filter(i => i.status !== 'bought').sort(byNew);
+					const done = items.filter(i => i.status === 'bought').sort(byNew);
+					return (
+						<div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
+							{/* Left — manifest (pending/skipped) */}
+							<div className="flex flex-col gap-2">
+								<p className="text-[11px] font-medium text-[#aaa] dark:text-[#555] uppercase tracking-wider px-1">Manifest · {pending.length}</p>
+								{pending.length === 0 ? (
+									<p className="text-[12px] text-[#ccc] dark:text-[#333] px-1">Nothing pending</p>
+								) : pending.map(item => (
+									<ManifestCard key={getId(item)} item={item} onDelete={() => deleteItem(item)} />
+								))}
+							</div>
+							{/* Right — done */}
+							<div className="flex flex-col gap-2">
+								<p className="text-[11px] font-medium text-[#aaa] dark:text-[#555] uppercase tracking-wider px-1">Done · {done.length}</p>
+								{done.length === 0 ? (
+									<p className="text-[12px] text-[#ccc] dark:text-[#333] px-1">Nothing yet</p>
+								) : done.map(item => (
+									<ManifestCard key={getId(item)} item={item} onDelete={() => deleteItem(item)} />
+								))}
+							</div>
+						</div>
+					);
+				})()}
 
 				{items.length > 0 && (
 					<p className="text-center text-[11px] text-[#bbb] dark:text-[#333]">
