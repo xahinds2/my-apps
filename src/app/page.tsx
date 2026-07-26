@@ -40,9 +40,9 @@ const BLAME: { hash: string; date: string; n: string; key: string; value: string
   { hash: 'f94e17a', date: '2023-06-10', n: '3', key: 'graduated',  value: '"B.Tech 2023"',                          cls: 'text-[#a3be8c]' },
   { hash: 'c52b8d1', date: '2023-07-03', n: '4', key: 'role',       value: '"Software Engineer"',                      cls: 'text-[#a3be8c]' },
   { hash: '7e1a9f4', date: '2024-01-01', n: '5', key: 'experience', value: '"3 years"',                               cls: 'text-[#ebcb8b]' },
-  { hash: '2b6d05c', date: '2026-07-26', n: '6', key: 'location',   value: '"India"',                              cls: 'text-[#a3be8c]' },
+  { hash: '2b6d05c', date: '2026-07-26', n: '6', key: 'location',   value: '"Pune, India"',                              cls: 'text-[#a3be8c]' },
   { hash: '9f3c1e8', date: '2026-07-26', n: '7', key: 'interests',  value: '["Anime", "Valorant", "Coding"]', cls: 'text-[#88c0d0]' },
-  { hash: '4a7b2d6', date: '2026-07-26', n: '8', key: 'status',     value: '"open to opportunities ✨"',                cls: 'text-[#b48ead]' },
+  { hash: '4a7b2d6', date: '2026-07-26', n: '8', key: 'quote',      value: '"The world is full of unfairness, it\'s your job to combat that unfairness."', cls: 'text-[#b48ead]' },
 ];
 
 const LIVE_APPS = [
@@ -123,10 +123,10 @@ export default function Landing() {
           <div className="px-4 pb-4 space-y-px">
             {BLAME.map(row => (
               <div key={row.n} className="flex items-baseline">
-                <span className="text-[#2e3440] w-[7ch] shrink-0">{row.hash}</span>
-                <span className="text-[#2e3440] mx-1">(</span>
-                <span className="text-[#3b4252] w-[28ch] shrink-0">Sahin Das {row.date}</span>
-                <span className="text-[#2e3440] mr-3">)</span>
+                <span className="hidden sm:inline text-[#2e3440] w-[7ch] shrink-0">{row.hash}</span>
+                <span className="hidden sm:inline text-[#2e3440] mx-1">(</span>
+                <span className="hidden sm:inline text-[#3b4252] w-[28ch] shrink-0">Sahin Das {row.date}</span>
+                <span className="hidden sm:inline text-[#2e3440] mr-3">)</span>
                 <span className="text-[#3b4252] w-[2ch] shrink-0 text-right mr-4">{row.n}</span>
                 <span className="text-[#81a1c1] w-[12ch] shrink-0">{row.key}:</span>
                 <span className={row.cls}>{row.value}</span>
