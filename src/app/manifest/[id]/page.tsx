@@ -6,31 +6,9 @@ import { useAuth } from '@clerk/nextjs';
 import AuthButton from '@/components/AuthButton';
 import { ArrowLeft, ShoppingBag, Plus, X, Check, Pencil, Trash2, ExternalLink, Link2, Package, ImageIcon } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
-
-interface ManifestLink { url: string; label?: string; }
-interface ManifestItem {
-	_id?: string; id?: string;
-	text: string;
-	links: ManifestLink[];
-	image?: string;
-	budget?: string;
-	timeline?: string;
-	status?: 'pending' | 'bought' | 'skipped';
-	priority?: 'must' | 'nice' | 'maybe';
-	note?: string;
-	createdAt: string;
-}
+import { type ManifestLink, type ManifestItem, getId, getStoreLabel, getFavicon } from '@/components/ManifestCard';
 
 const STORAGE_KEY = 'quickshop_manifest_items_v1';
-
-const KNOWN_STORES: Record<string, string> = {
-	'amazon.in': 'Amazon', 'amazon.com': 'Amazon',
-	'flipkart.com': 'Flipkart', 'myntra.com': 'Myntra',
-	'nykaa.com': 'Nykaa', 'croma.com': 'Croma',
-	'meesho.com': 'Meesho', 'ajio.com': 'Ajio',
-	'snapdeal.com': 'Snapdeal', 'tatacliq.com': 'Tata CLiQ',
-	'reliancedigital.in': 'Reliance Digital', 'jiomart.com': 'JioMart',
-};
 
 const STORE_SEARCH = [
 	{ name: 'Amazon', domain: 'amazon.in', search: (q: string) => `https://www.amazon.in/s?k=${encodeURIComponent(q)}` },
@@ -56,18 +34,6 @@ const PRIORITY_OPTIONS: { value: 'must' | 'nice' | 'maybe'; icon: string; label:
 	{ value: 'nice', icon: '✨', label: 'Nice to have', active: 'bg-violet-50 border-violet-300 text-violet-700 dark:bg-violet-500/15 dark:border-violet-500/40 dark:text-violet-400', inactive: 'bg-white dark:bg-[#111] border-[#e0e0e0] dark:border-[#2a2a2a] text-[#666] dark:text-[#555]' },
 	{ value: 'maybe', icon: '💭', label: 'Maybe someday', active: 'bg-[#f5f5f5] border-[#999] text-[#333] dark:bg-[#1a1a1a] dark:border-[#555] dark:text-[#ccc]', inactive: 'bg-white dark:bg-[#111] border-[#e0e0e0] dark:border-[#2a2a2a] text-[#666] dark:text-[#555]' },
 ];
-
-function getId(item: ManifestItem) { return item._id || item.id || ''; }
-
-function getStoreLabel(url: string): string {
-	try { const h = new URL(url).hostname.replace(/^www\./, ''); return KNOWN_STORES[h] || h; }
-	catch { return 'Link'; }
-}
-
-function getFavicon(url: string): string {
-	try { return `https://www.google.com/s2/favicons?domain=${new URL(url).hostname}&sz=32`; }
-	catch { return ''; }
-}
 
 function isValidUrl(url: string): boolean {
 	try { const p = new URL(url); return p.protocol === 'http:' || p.protocol === 'https:'; }
@@ -484,7 +450,8 @@ function ManifestDetailPage({ manifestItemId, isSignedIn }: { manifestItemId: st
 							{item.links.map((link, i) => {
 								const hostname = (() => { try { return new URL(link.url).hostname.replace(/^www\./, ''); } catch { return ''; } })();
 								return (
-									<div key={i} className="group flex items-center gap-2.5 p-3 rounded-xl bg-[#f8f8f8] dark:bg-[#0d0d0d] border border-[#e5e5e5] dark:border-[#1e1e1e] hover:border-[#c8c8c8] dark:hover:border-[#2e2e2e] transition">
+									<a key={i} href={link.url} target="_blank" rel="noopener noreferrer"
+										className="group flex items-center gap-2.5 p-3 rounded-xl bg-[#f8f8f8] dark:bg-[#0d0d0d] border border-[#e5e5e5] dark:border-[#1e1e1e] hover:border-[#c8c8c8] dark:hover:border-[#2e2e2e] transition">
 										{/* eslint-disable-next-line @next/next/no-img-element */}
 										<img src={getFavicon(link.url)} alt="" className="h-6 w-6 rounded-md shrink-0" />
 										<div className="flex-grow min-w-0">
@@ -492,16 +459,15 @@ function ManifestDetailPage({ manifestItemId, isSignedIn }: { manifestItemId: st
 											<p className="text-[10px] text-[#bbb] dark:text-[#444] truncate">{hostname}</p>
 										</div>
 										<div className="shrink-0 flex items-center gap-0.5">
-											<a href={link.url} target="_blank" rel="noopener noreferrer"
-												className="p-1 rounded text-[#bbb] dark:text-[#333] hover:text-[#0a0a0a] dark:hover:text-white transition">
+											<span className="p-1 rounded text-[#bbb] dark:text-[#333]">
 												<ExternalLink className="h-3 w-3" />
-											</a>
-											<button onClick={() => removeLink(i)}
+											</span>
+											<button onClick={(e) => { e.preventDefault(); e.stopPropagation(); removeLink(i); }}
 												className="p-1 rounded text-[#ccc] dark:text-[#333] hover:text-red-400 transition opacity-0 group-hover:opacity-100">
 												<X className="h-3 w-3" />
 											</button>
 										</div>
-									</div>
+									</a>
 								);
 							})}
 						</div>

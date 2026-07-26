@@ -4,25 +4,21 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@clerk/nextjs';
 import AuthButton from '@/components/AuthButton';
-import { Plus, Trash2, ShoppingBag, ChevronRight, Check } from 'lucide-react';
+import { Plus, ShoppingBag, Share2, Globe, Users } from 'lucide-react';
+import ManifestCard, { type ManifestItem, getId } from '@/components/ManifestCard';
 
-interface ManifestLink {
-	url: string;
-	label?: string;
+interface AppShareRecord {
+	_id: string;
+	owner: string;
+	appname: string;
+	public: boolean;
+	viewableUsers: string[];
 }
 
-interface ManifestItem {
-	_id?: string;
-	id?: string;
-	text: string;
-	links: ManifestLink[];
-	image?: string;
-	budget?: string;
-	timeline?: string;
-	status?: 'pending' | 'bought' | 'skipped';
-	priority?: 'must' | 'nice' | 'maybe';
-	note?: string;
-	createdAt: string;
+interface ShareableUser {
+	id: string;
+	name: string;
+	email?: string;
 }
 
 const STORAGE_KEY = 'quickshop_manifest_items_v1';
@@ -40,40 +36,7 @@ const PLACEHOLDERS = [
 	'"Herman Miller Aeron Chair"',
 ];
 
-const KNOWN_STORES: Record<string, string> = {
-	'amazon.in': 'Amazon',
-	'amazon.com': 'Amazon',
-	'flipkart.com': 'Flipkart',
-	'myntra.com': 'Myntra',
-	'nykaa.com': 'Nykaa',
-	'croma.com': 'Croma',
-	'meesho.com': 'Meesho',
-	'ajio.com': 'Ajio',
-	'snapdeal.com': 'Snapdeal',
-	'tatacliq.com': 'Tata CLiQ',
-	'reliancedigital.in': 'Reliance Digital',
-	'jiomart.com': 'JioMart',
-};
 
-function getId(item: ManifestItem) { return item._id || item.id || ''; }
-
-function formatDate(d: string) {
-	return new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
-}
-
-function getStoreLabel(url: string): string {
-	try {
-		const hostname = new URL(url).hostname.replace(/^www\./, '');
-		return KNOWN_STORES[hostname] || hostname;
-	} catch { return 'Link'; }
-}
-
-function getFavicon(url: string): string {
-	try { return `https://www.google.com/s2/favicons?domain=${new URL(url).hostname}&sz=32`; }
-	catch { return ''; }
-}
-
-const PRIORITY_ICON: Record<string, string> = { must: '🔥', nice: '✨', maybe: '💭' };
 
 function loadStorage(): ManifestItem[] {
 	if (typeof window === 'undefined') return [];
@@ -82,158 +45,8 @@ function loadStorage(): ManifestItem[] {
 
 function saveStorage(data: ManifestItem[]) { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
 
-function nameToHue(name: string): number {
-	let hash = 0;
-	for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-	return Math.abs(hash) % 360;
-}
-
-function getInitials(name: string): string {
-	const words = name.trim().split(/\s+/);
-	return words.length === 1 ? words[0].slice(0, 2).toUpperCase() : (words[0][0] + words[1][0]).toUpperCase();
-}
-
 function isLocalManifestItem(item: ManifestItem): boolean {
 	return getId(item).startsWith('local-');
-}
-
-function ManifestCard({ item, onDelete }: {
-	item: ManifestItem;
-	onDelete: () => void;
-}) {
-	const [deleting, setDeleting] = useState(false);
-	const [confirmingDelete, setConfirmingDelete] = useState(false);
-	const id = getId(item);
-	const links = item.links || [];
-
-	const handleDeleteClick = (e: React.MouseEvent) => {
-		e.preventDefault();
-		e.stopPropagation();
-		setConfirmingDelete(true);
-	};
-
-	const handleConfirmDelete = (e: React.MouseEvent) => {
-		e.preventDefault();
-		e.stopPropagation();
-		setDeleting(true);
-		onDelete();
-	};
-
-	const handleCancelDelete = (e: React.MouseEvent) => {
-		e.preventDefault();
-		e.stopPropagation();
-		setConfirmingDelete(false);
-	};
-
-	const bought = item.status === 'bought';
-	const skipped = item.status === 'skipped';
-
-	return (
-		<div className={`group relative flex items-center gap-4 p-3 rounded-xl border bg-white dark:bg-[#0d0d0d] transition-all duration-150 ${deleting ? 'opacity-30 pointer-events-none' : ''} ${bought ? 'border-[#e5e5e5] dark:border-[#1e1e1e] hover:border-[#c8c8c8] dark:hover:border-[#2e2e2e]' : 'border-[#ececec] dark:border-[#181818] hover:border-[#d8d8d8] dark:hover:border-[#232323]'}`}>
-
-			{/* Thumbnail */}
-			<div className="relative shrink-0 w-20 h-20 rounded-lg overflow-hidden bg-[#f5f5f5] dark:bg-[#111]">
-				{item.image ? (
-					/* eslint-disable-next-line @next/next/no-img-element */
-					<img
-						src={item.image}
-						alt={item.text}
-						className="w-full h-full object-cover"
-					/>
-				) : (() => {
-					const hue = nameToHue(item.text);
-					return (
-						<div
-							className="w-full h-full flex items-center justify-center select-none"
-							style={{ background: `linear-gradient(135deg, hsl(${hue},30%,88%) 0%, hsl(${(hue + 40) % 360},25%,82%) 100%)` }}
-						>
-							<span
-								className="text-[15px] font-semibold tracking-tight"
-								style={{ color: `hsl(${hue},25%,38%)` }}
-							>
-								{getInitials(item.text)}
-							</span>
-						</div>
-					);
-				})()}
-				{item.priority && !bought && (
-					<span className="absolute bottom-1 right-1 text-xs leading-none drop-shadow-sm">{PRIORITY_ICON[item.priority]}</span>
-				)}
-				{bought && (
-					<div className="absolute bottom-1.5 right-1.5 w-5 h-5 rounded-full bg-emerald-500 dark:bg-emerald-600 flex items-center justify-center shadow-sm">
-						<Check className="h-3 w-3 text-white" />
-					</div>
-				)}
-			</div>
-
-			{/* Content */}
-			<div className="flex-grow min-w-0 flex flex-col gap-1.5">
-				<p className={`text-sm font-medium leading-snug line-clamp-2 ${skipped ? 'text-[#bbb] dark:text-[#444]' : bought ? 'text-[#0a0a0a] dark:text-[#f0f0f0]' : 'text-[#999] dark:text-[#555]'}`}>
-					{item.text}
-				</p>
-
-				<div className="flex items-center gap-1.5 flex-wrap">
-					{item.budget && (
-						<span className={`text-[12px] font-semibold tabular-nums ${bought ? 'text-[#0a0a0a] dark:text-[#e0e0e0]' : 'text-[#bbb] dark:text-[#444]'}`}>
-							₹{Number(item.budget).toLocaleString('en-IN')}
-						</span>
-					)}
-					{item.budget && item.timeline && <span className="text-[#ddd] dark:text-[#2a2a2a]">·</span>}
-					{item.timeline && <span className="text-[11px] text-[#aaa] dark:text-[#555]">{item.timeline}</span>}
-					{(item.budget || item.timeline) && <span className="text-[#ddd] dark:text-[#2a2a2a]">·</span>}
-					<span className="text-[11px] text-[#bbb] dark:text-[#444]">{formatDate(item.createdAt)}</span>
-				</div>
-
-				{links.length > 0 && (
-					<div className="flex items-center gap-3 flex-wrap">
-						{links.slice(0, 3).map((link, i) => (
-							<span key={i} className="flex items-center gap-1 text-[11px] text-[#999] dark:text-[#555]">
-								{/* eslint-disable-next-line @next/next/no-img-element */}
-								<img src={getFavicon(link.url)} alt="" className="h-3 w-3 rounded-sm opacity-60" />
-								{link.label || getStoreLabel(link.url)}
-							</span>
-						))}
-						{links.length > 3 && (
-							<span className="text-[11px] text-[#bbb] dark:text-[#444]">+{links.length - 3} more</span>
-						)}
-					</div>
-				)}
-			</div>
-
-			{/* Right actions */}
-			<div className="shrink-0 flex flex-col items-end gap-2 z-20">
-				{bought && (
-					<span className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/50 whitespace-nowrap">
-						<Check className="h-2.5 w-2.5" /> Got it
-					</span>
-				)}
-				{skipped && (
-					<span className="text-[10px] text-[#bbb] dark:text-[#444]">Skipped</span>
-				)}
-
-				<div className="flex items-center gap-0.5 pointer-events-auto">
-					{confirmingDelete ? (
-						<>
-							<button onClick={handleCancelDelete} className="text-[10px] px-1.5 py-0.5 rounded text-[#999] hover:text-[#555] dark:text-[#555] dark:hover:text-[#999] transition font-medium">
-								Cancel
-							</button>
-							<button onClick={handleConfirmDelete} className="text-[10px] px-1.5 py-0.5 rounded bg-red-500 text-white font-medium transition hover:bg-red-600">
-								Delete
-							</button>
-						</>
-					) : (
-						<button onClick={handleDeleteClick} className="p-1.5 rounded text-[#d8d8d8] dark:text-[#2a2a2a] hover:text-red-500 dark:hover:text-red-400 opacity-0 group-hover:opacity-100 transition">
-							<Trash2 className="h-3.5 w-3.5" />
-						</button>
-					)}
-					<ChevronRight className="h-4 w-4 text-[#d0d0d0] dark:text-[#2a2a2a]" />
-				</div>
-			</div>
-
-			{/* Full-card link */}
-			<Link href={`/manifest/${id}`} className="absolute inset-0 z-10" />
-		</div>
-	);
 }
 
 function ManifestPage({ isSignedIn }: { isSignedIn: boolean }) {
@@ -246,6 +59,20 @@ function ManifestPage({ isSignedIn }: { isSignedIn: boolean }) {
 	const [phVisible, setPhVisible] = useState(true);
 	const [inputFocused, setInputFocused] = useState(false);
 	const syncAttemptedRef = useRef(false);
+	const [shareOpen, setShareOpen] = useState(false);
+	const [shareLoading, setShareLoading] = useState(false);
+	const [shareSaving, setShareSaving] = useState(false);
+	const [shareError, setShareError] = useState('');
+	const [shareSuccess, setShareSuccess] = useState('');
+	const [isPublic, setIsPublic] = useState(false);
+	const [shareUsers, setShareUsers] = useState<ShareableUser[]>([]);
+	const [shareUsersLoading, setShareUsersLoading] = useState(false);
+	const [shareUsersError, setShareUsersError] = useState('');
+	const [selectedShareUserIds, setSelectedShareUserIds] = useState<string[]>([]);
+	const [userSearch, setUserSearch] = useState('');
+	const [userSearchOpen, setUserSearchOpen] = useState(false);
+	const [existingShare, setExistingShare] = useState<AppShareRecord | null>(null);
+	const [revokeConfirming, setRevokeConfirming] = useState(false);
 
 	useEffect(() => {
 		const timer = setInterval(() => {
@@ -349,6 +176,112 @@ function ManifestPage({ isSignedIn }: { isSignedIn: boolean }) {
 		}
 	}, [isSignedIn]);
 
+	const hydrateShareUi = useCallback((share: AppShareRecord | null) => {
+		setExistingShare(share);
+		if (!share) {
+			setIsPublic(false);
+			setSelectedShareUserIds([]);
+			return;
+		}
+		setIsPublic(share.public);
+		setSelectedShareUserIds(Array.isArray(share.viewableUsers) ? share.viewableUsers : []);
+	}, []);
+
+	const loadShareUsers = useCallback(async () => {
+		if (!isSignedIn) return;
+		setShareUsersLoading(true);
+		setShareUsersError('');
+		try {
+			const res = await fetch('/api/shares/users');
+			const json = await res.json();
+			if (!res.ok) throw new Error(json?.error || 'Unable to load users');
+			setShareUsers(Array.isArray(json?.data) ? json.data : []);
+		} catch (error) {
+			setShareUsersError(error instanceof Error ? error.message : 'Unable to load users');
+		} finally {
+			setShareUsersLoading(false);
+		}
+	}, [isSignedIn]);
+
+	const loadManifestShare = useCallback(async () => {
+		if (!isSignedIn) return;
+		setShareLoading(true);
+		setShareError('');
+		try {
+			const res = await fetch('/api/share?appname=manifest');
+			const json = await res.json();
+			if (!res.ok) throw new Error(json?.error || 'Unable to load share settings');
+			hydrateShareUi((json?.data as AppShareRecord) ?? null);
+		} catch (error) {
+			setShareError(error instanceof Error ? error.message : 'Unable to load share settings');
+		} finally {
+			setShareLoading(false);
+		}
+	}, [hydrateShareUi, isSignedIn]);
+
+	useEffect(() => {
+		if (shareOpen && isSignedIn) {
+			loadManifestShare();
+			loadShareUsers();
+		}
+	}, [shareOpen, isSignedIn, loadManifestShare, loadShareUsers]);
+
+	const toggleShareUser = useCallback((id: string) => {
+		setSelectedShareUserIds(prev => (prev.includes(id) ? prev.filter(v => v !== id) : [...prev, id]));
+	}, []);
+
+	const saveManifestShare = useCallback(async () => {
+		if (!isSignedIn) {
+			setShareError('Sign in required to share your Manifest.');
+			return;
+		}
+
+		setShareSaving(true);
+		setShareError('');
+		setShareSuccess('');
+
+		try {
+			const res = await fetch('/api/share', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ appname: 'manifest', public: isPublic, viewableUsers: selectedShareUserIds }),
+			});
+			const json = await res.json();
+			if (!res.ok) throw new Error(json?.error || 'Unable to save share settings');
+			setExistingShare((json?.data as AppShareRecord) ?? null);
+			setShareSuccess('Share settings saved.');
+		} catch (error) {
+			setShareError(error instanceof Error ? error.message : 'Unable to save share settings');
+		} finally {
+			setShareSaving(false);
+		}
+	}, [isPublic, isSignedIn, selectedShareUserIds]);
+
+	const clearManifestShare = useCallback(async () => {
+		setShareSaving(true);
+		setShareError('');
+		setShareSuccess('');
+		try {
+			const res = await fetch('/api/share', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ appname: 'manifest', public: false, viewableUsers: [] }),
+			});
+			const json = await res.json();
+			if (!res.ok) throw new Error(json?.error || 'Unable to clear share');
+			hydrateShareUi(null);
+			setShareSuccess('Sharing cleared.');
+		} catch (error) {
+			setShareError(error instanceof Error ? error.message : 'Unable to clear share');
+		} finally {
+			setShareSaving(false);
+		}
+	}, [hydrateShareUi]);
+
+	const selectedShareUsers = selectedShareUserIds
+		.map(id => shareUsers.find(user => user.id === id))
+		.filter((user): user is ShareableUser => Boolean(user));
+
 	return (
 		<div className="min-h-screen flex flex-col">
 			<header className="sticky top-0 z-40 w-full border-b border-[#e0e0e0] dark:border-[#222] bg-white/90 dark:bg-black/90 backdrop-blur-md">
@@ -362,11 +295,33 @@ function ManifestPage({ isSignedIn }: { isSignedIn: boolean }) {
 			</header>
 
 			<main className="flex-grow max-w-4xl mx-auto w-full px-6 py-10 space-y-8">
-				<div>
-					<h1 className="text-xl font-bold tracking-tight">Manifest</h1>
-					<p className="text-xs text-[#666] dark:text-[#555] mt-1">
-						Keep the things you want in one place. Paste store links and jump back when you&apos;re ready.
-					</p>
+				<div className="flex items-start justify-between gap-3">
+					<div>
+						<h1 className="text-xl font-bold tracking-tight">Manifest</h1>
+						<p className="text-xs text-[#666] dark:text-[#555] mt-1">
+							Keep the things you want in one place. Paste store links and jump back when you&apos;re ready.
+						</p>
+					</div>
+					<div className="shrink-0 flex items-center gap-2">
+						<Link href="/manifest/shared" className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[#d8d8d8] dark:border-[#2a2a2a] text-xs font-medium text-[#333] dark:text-[#ddd] hover:border-[#b8b8b8] dark:hover:border-[#444] transition">
+							Shared With Me
+						</Link>
+						<button
+							type="button"
+							onClick={() => {
+								setShareOpen(true);
+								setShareError('');
+								setShareSuccess('');
+								setUserSearch('');
+								setUserSearchOpen(false);
+							}}
+							disabled={!isSignedIn}
+							className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[#d8d8d8] dark:border-[#2a2a2a] text-xs font-medium text-[#333] dark:text-[#ddd] hover:border-[#b8b8b8] dark:hover:border-[#444] disabled:opacity-40 disabled:cursor-not-allowed transition"
+						>
+							<Share2 className="h-3.5 w-3.5" />
+							Share Manifest
+						</button>
+					</div>
 				</div>
 
 				<form onSubmit={addWish} className="flex gap-2">
@@ -451,6 +406,155 @@ function ManifestPage({ isSignedIn }: { isSignedIn: boolean }) {
 						{items.length} {items.length === 1 ? 'item' : 'items'}
 						{!isSignedIn && ' · saved locally'}
 					</p>
+				)}
+
+				{shareOpen && (
+					<div className="fixed inset-0 z-50 bg-black/35 backdrop-blur-sm p-4 flex items-center justify-center" onClick={() => { setShareOpen(false); setRevokeConfirming(false); }}>
+						<div className="w-full max-w-lg rounded-2xl border border-[#e5e5e5] dark:border-[#2a2a2a] bg-white dark:bg-[#0d0d0d] shadow-xl p-5" onClick={e => e.stopPropagation()}>
+							<div className="flex items-start justify-between gap-3">
+								<div>
+									<h2 className="text-sm font-semibold text-[#0a0a0a] dark:text-white">Share Entire Manifest</h2>
+									<p className="mt-1 text-xs text-[#777] dark:text-[#555]">One share setting for your full Manifest list.</p>
+								</div>
+								<button onClick={() => { setShareOpen(false); setRevokeConfirming(false); }} className="text-xs text-[#999] dark:text-[#555] hover:text-[#555] dark:hover:text-[#bbb] transition">Close</button>
+							</div>
+
+							{!isSignedIn && (
+								<p className="mt-4 text-xs text-amber-600 dark:text-amber-400">Sign in to enable sharing.</p>
+							)}
+
+							{isSignedIn && (
+							<div className="mt-4 space-y-4">
+								{shareLoading ? (
+									<p className="text-xs text-[#888] dark:text-[#555]">Loading current share settings...</p>
+								) : (
+									<>
+										{/* Public toggle */}
+										<button
+											type="button"
+											onClick={() => setIsPublic(v => !v)}
+											className={`w-full px-3 py-2.5 rounded-lg border text-xs font-medium inline-flex items-center gap-2 transition ${isPublic ? 'border-[#0a0a0a] dark:border-white text-[#0a0a0a] dark:text-white bg-[#f5f5f5] dark:bg-[#1a1a1a]' : 'border-[#ddd] dark:border-[#2a2a2a] text-[#777] dark:text-[#555]'}`}
+										>
+											<Globe className="h-3.5 w-3.5" />
+											<span>{isPublic ? 'Public — anyone can see your manifest' : 'Public sharing is off'}</span>
+										</button>
+
+										{/* Specific users */}
+										<div className="relative">
+											<label className="flex items-center gap-1.5 text-[11px] font-medium text-[#666] dark:text-[#555] mb-1.5">
+												<Users className="h-3 w-3" /> Share with specific users
+											</label>
+											<input
+												type="text"
+												placeholder="Click to search users..."
+												value={userSearch}
+												onChange={e => setUserSearch(e.target.value)}
+												onFocus={() => setUserSearchOpen(true)}
+												onBlur={() => setTimeout(() => setUserSearchOpen(false), 150)}
+												className="w-full px-2.5 py-1.5 rounded-lg border border-[#dcdcdc] dark:border-[#2a2a2a] bg-white dark:bg-[#111] text-xs placeholder:text-[#aaa] dark:placeholder:text-[#555] focus:outline-none focus:border-[#aaa] dark:focus:border-[#555] transition"
+											/>
+											{userSearchOpen && (
+												<div className="absolute z-10 mt-1 w-full rounded-lg border border-[#dcdcdc] dark:border-[#2a2a2a] bg-white dark:bg-[#111] shadow-lg p-2 max-h-44 overflow-auto space-y-1">
+													{shareUsersLoading ? (
+														<p className="text-[11px] text-[#888] dark:text-[#555] px-1 py-1">Loading users...</p>
+													) : shareUsers.length === 0 ? (
+														<p className="text-[11px] text-[#888] dark:text-[#555] px-1 py-1">No users available.</p>
+													) : (() => {
+														const q = userSearch.trim().toLowerCase();
+														const filtered = shareUsers
+															.filter(u => !selectedShareUserIds.includes(u.id))
+															.filter(u => !q || u.name.toLowerCase().includes(q) || (u.email ?? '').toLowerCase().includes(q));
+														if (filtered.length === 0) {
+															return <p className="text-[11px] text-[#888] dark:text-[#555] px-1 py-1">No users match.</p>;
+														}
+														return filtered.map(user => {
+															return (
+																<button
+																	type="button"
+																	key={user.id}
+																	onClick={() => { toggleShareUser(user.id); setUserSearch(''); }}
+																	className="w-full text-left px-2 py-1.5 rounded-md border border-transparent hover:border-[#e0e0e0] dark:hover:border-[#2a2a2a] transition"
+																>
+																	<p className="text-xs font-medium text-[#222] dark:text-[#e5e5e5] truncate">{user.name}</p>
+																	{user.email && <p className="text-[10px] text-[#999] dark:text-[#555] truncate">{user.email}</p>}
+																</button>
+															);
+														});
+													})()}
+												</div>
+											)}
+											{shareUsersError && <p className="mt-1 text-[11px] text-red-500">{shareUsersError}</p>}
+											{selectedShareUsers.length > 0 && (
+												<div className="mt-2 flex flex-wrap gap-1">
+													{selectedShareUsers.map(u => (
+														<span key={u.id} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#f0f0f0] dark:bg-[#1a1a1a] border border-[#ddd] dark:border-[#2a2a2a] text-[11px] text-[#333] dark:text-[#ccc]">
+															{u.name}
+															<button type="button" onClick={() => toggleShareUser(u.id)} className="text-[#aaa] hover:text-[#555] dark:hover:text-[#ccc] leading-none">&times;</button>
+														</span>
+													))}
+												</div>
+											)}
+										</div>
+
+										{shareError && <p className="text-xs text-red-500">{shareError}</p>}
+										{shareSuccess && <p className="text-xs text-emerald-600 dark:text-emerald-400">{shareSuccess}</p>}
+
+										<div className="flex items-center justify-between gap-2 pt-1">
+										{revokeConfirming ? (
+											<div className="flex items-center gap-2">
+												<span className="text-xs text-[#555] dark:text-[#aaa]">Remove all sharing?</span>
+												<button
+													type="button"
+													onClick={() => setRevokeConfirming(false)}
+													disabled={shareSaving}
+													className="px-2.5 py-1.5 rounded-lg border border-[#ddd] dark:border-[#2a2a2a] text-xs text-[#555] dark:text-[#aaa] disabled:opacity-40"
+												>
+													No
+												</button>
+												<button
+													type="button"
+													onClick={() => { setRevokeConfirming(false); clearManifestShare(); }}
+													disabled={shareSaving}
+													className="px-2.5 py-1.5 rounded-lg bg-red-600 text-white text-xs font-medium disabled:opacity-40"
+												>
+													Yes, revoke
+												</button>
+											</div>
+										) : (
+											<button
+												type="button"
+												onClick={() => setRevokeConfirming(true)}
+												disabled={(!existingShare && !isPublic && selectedShareUserIds.length === 0) || shareSaving}
+												className="px-3 py-2 rounded-lg border border-red-200 dark:border-red-900/40 text-red-600 dark:text-red-400 text-xs disabled:opacity-40"
+											>
+												Revoke
+											</button>
+										)}
+										<div className="flex items-center gap-2">
+											<button
+												type="button"
+												onClick={() => { setShareOpen(false); setRevokeConfirming(false); }}
+												disabled={shareSaving}
+												className="px-3 py-2 rounded-lg border border-[#ddd] dark:border-[#2a2a2a] text-xs text-[#555] dark:text-[#aaa] disabled:opacity-40"
+											>
+												Cancel
+											</button>
+											<button
+												type="button"
+												onClick={saveManifestShare}
+												disabled={shareSaving}
+												className="px-3 py-2 rounded-lg bg-[#0a0a0a] dark:bg-white text-white dark:text-black text-xs font-semibold disabled:opacity-40"
+											>
+												{shareSaving ? 'Saving...' : 'Save'}
+											</button>
+										</div>
+										</div>
+									</>
+								)}
+							</div>
+						)}
+						</div>
+					</div>
 				)}
 			</main>
 		</div>
