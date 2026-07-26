@@ -50,7 +50,7 @@ export async function GET(
       return NextResponse.json({ error: 'Share not found' }, { status: 404 });
     }
 
-    return NextResponse.json({ data: serializeShare(share as Record<string, unknown>) });
+    return NextResponse.json({ data: serializeShare(share as unknown as Record<string, unknown>) });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Internal Server Error';
     return NextResponse.json({ error: message }, { status: 500 });
@@ -139,7 +139,7 @@ export async function PATCH(
     }
 
     return NextResponse.json({
-      data: serializeShare(updated as Record<string, unknown>),
+      data: serializeShare(updated as unknown as Record<string, unknown>),
       ...(rawToken ? { publicToken: rawToken, publicUrl: buildPublicShareUrl(req, rawToken) } : {}),
     });
   } catch (err: unknown) {

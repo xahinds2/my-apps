@@ -4,9 +4,9 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@clerk/nextjs';
 import AuthButton from '@/components/AuthButton';
-import { ArrowLeft, ShoppingBag, Plus, X, Check, Pencil, Trash2, ExternalLink, Link2, Package, ImageIcon } from 'lucide-react';
+import { ArrowLeft, ShoppingBag, Plus, X, Check, Pencil, Trash2, ExternalLink, Package, ImageIcon } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
-import { type ManifestLink, type ManifestItem, getId, getStoreLabel, getFavicon } from '@/components/ManifestCard';
+import { type ManifestItem, getId, getStoreLabel, getFavicon } from '@/components/ManifestCard';
 
 const STORAGE_KEY = 'quickshop_manifest_items_v1';
 

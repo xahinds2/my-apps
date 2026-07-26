@@ -11,9 +11,11 @@ function toPlainJson<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
-function pruneSharedData<T extends Record<string, unknown>>(value: T) {
-  const { userId: _userId, __v: _v, ...rest } = value;
-  return rest;
+function pruneSharedData<T extends Record<string, unknown>>(value: T): Omit<T, 'userId' | '__v'> {
+  const result = { ...value };
+  delete (result as Record<string, unknown>).userId;
+  delete (result as Record<string, unknown>).__v;
+  return result as Omit<T, 'userId' | '__v'>;
 }
 
 export function createShareToken(): string {
@@ -87,12 +89,12 @@ export async function getShareableResource(
 
   if (resourceType === 'user_insurance') {
     const doc = await UserInsurance.findOne({ _id: resourceId, userId: ownerUserId }).lean();
-    return doc ? pruneSharedData(toPlainJson(doc as Record<string, unknown>)) : null;
+    return doc ? pruneSharedData(toPlainJson(doc as unknown as Record<string, unknown>)) : null;
   }
 
   if (resourceType === 'user_milestones') {
     const doc = await UserMilestones.findOne({ _id: resourceId, userId: ownerUserId }).lean();
-    return doc ? pruneSharedData(toPlainJson(doc as Record<string, unknown>)) : null;
+    return doc ? pruneSharedData(toPlainJson(doc as unknown as Record<string, unknown>)) : null;
   }
 
   return null;

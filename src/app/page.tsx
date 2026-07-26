@@ -36,8 +36,8 @@ const SKILLS = ['.NET', 'C#', 'MSSQL', 'AWS', 'TypeScript', 'React', 'Next.js', 
 
 const BLAME: { hash: string; date: string; n: string; key: string; value: string; cls: string }[] = [
   { hash: 'a1f3c9e', date: '1998-01-01', n: '1', key: 'name',       value: '"Sahin Das"',                              cls: 'text-[#a3be8c]' },
-  { hash: '3d8b22f', date: '2019-08-01', n: '2', key: 'education',  value: '"NIT Silchar · B.Tech 2023"',           cls: 'text-[#a3be8c]' },
-  { hash: 'f94e17a', date: '2023-06-10', n: '3', key: 'graduated',  value: '"Class of 2023"',                          cls: 'text-[#a3be8c]' },
+  { hash: '3d8b22f', date: '2019-08-01', n: '2', key: 'education',  value: '"NIT Silchar"',           cls: 'text-[#a3be8c]' },
+  { hash: 'f94e17a', date: '2023-06-10', n: '3', key: 'graduated',  value: '"B.Tech 2023"',                          cls: 'text-[#a3be8c]' },
   { hash: 'c52b8d1', date: '2023-07-03', n: '4', key: 'role',       value: '"Software Engineer"',                      cls: 'text-[#a3be8c]' },
   { hash: '7e1a9f4', date: '2024-01-01', n: '5', key: 'experience', value: '"3 years"',                               cls: 'text-[#ebcb8b]' },
   { hash: '2b6d05c', date: '2026-07-26', n: '6', key: 'location',   value: '"India"',                              cls: 'text-[#a3be8c]' },
@@ -104,7 +104,7 @@ export default function Landing() {
       {/* Hero — identity */}
       <div className="max-w-3xl mx-auto w-full px-5 pt-12 pb-6">
         <h1 className="text-2xl font-black tracking-tight text-[#0a0a0a] dark:text-white mb-0.5">Sahin Das</h1>
-        <p className="text-xs text-[#888] dark:text-[#444] mb-5">Software Engineer · NITS 23'</p>
+        <p className="text-xs text-[#888] dark:text-[#444] mb-5">Software Engineer · NITS 23&apos;</p>
       </div>
 
       {/* git blame — full width */}
