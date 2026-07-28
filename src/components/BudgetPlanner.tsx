@@ -149,6 +149,9 @@ export default function BudgetPlanner() {
   const nowMonth = now.getMonth();
   const [activeYear, setActiveYear] = useState(nowYear);
   const [activeMonth, setActiveMonth] = useState(nowMonth);
+
+  // Clear just-added item when month changes
+  useEffect(() => { setJustAddedItemId(null); }, [activeMonth, activeYear]);
   const [plans, setPlans] = useState<Record<number, BudgetPlanDoc>>({});
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
@@ -163,6 +166,7 @@ export default function BudgetPlanner() {
   const [addingItemFor, setAddingItemFor] = useState<string | null>(null);
   const [newItemName, setNewItemName] = useState('');
   const [renamingItem, setRenamingItem] = useState<{ catId: string; itemId: string } | null>(null);
+  const [justAddedItemId, setJustAddedItemId] = useState<string | null>(null);
 
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loadedYears = useRef(new Set<number>());
@@ -328,6 +332,7 @@ export default function BudgetPlanner() {
         c.id !== catId ? c : { ...c, items: [...c.items, item] }
       ),
     }));
+    setJustAddedItemId(item.id);
     setNewItemName('');
     setAddingItemFor(null);
   }
@@ -589,17 +594,23 @@ export default function BudgetPlanner() {
                   {/* Items list */}
                   {!isCollapsed && (
                     <div className="px-4 pb-3 pt-2 space-y-0.5">
-                      {[...cat.items].sort((a, b) => a.order - b.order).map(item => (
+                      {[...cat.items].sort((a, b) => a.order - b.order).filter(item =>
+                        (item.amounts[activeMonth] ?? 0) > 0 || item.id === justAddedItemId
+                      ).map(item => (
                         <ItemRow
                           key={item.id}
                           item={item}
                           activeMonth={activeMonth}
+                          autoFocusAmount={item.id === justAddedItemId}
                           isRenaming={renamingItem?.catId === cat.id && renamingItem.itemId === item.id}
                           onStartRename={() => setRenamingItem({ catId: cat.id, itemId: item.id })}
                           onRename={name => { renameItem(cat.id, item.id, name); setRenamingItem(null); }}
                           onCancelRename={() => setRenamingItem(null)}
-                          onAmountChange={val => setItemAmount(cat.id, item.id, val)}
-                          onDelete={() => deleteItem(cat.id, item.id)}
+                          onAmountChange={val => {
+                            if (item.id === justAddedItemId) setJustAddedItemId(null);
+                            setItemAmount(cat.id, item.id, val);
+                          }}
+                          onDelete={() => setItemAmount(cat.id, item.id, 0)}
                         />
                       ))}
 
@@ -1366,6 +1377,7 @@ function IncomeCard({ income, onSave }: { income: number; onSave: (n: number) =>
 interface ItemRowProps {
   item: BudgetItem;
   activeMonth: number;
+  autoFocusAmount?: boolean;
   isRenaming: boolean;
   onStartRename: () => void;
   onRename: (name: string) => void;
@@ -1375,7 +1387,7 @@ interface ItemRowProps {
 }
 
 function ItemRow({
-  item, activeMonth, isRenaming,
+  item, activeMonth, autoFocusAmount, isRenaming,
   onStartRename, onRename, onCancelRename,
   onAmountChange, onDelete,
 }: ItemRowProps) {
@@ -1386,26 +1398,17 @@ function ItemRow({
       {/* Name */}
       <div className="flex-1 min-w-0">
         {isRenaming ? (
-          <div className="flex items-center gap-1.5 flex-1 min-w-0">
-            <input
-              autoFocus
-              defaultValue={item.name}
-              maxLength={80}
-              className="flex-1 min-w-0 bg-transparent text-sm text-[#111] dark:text-white border-b border-[#ddd] dark:border-[#333] outline-none pb-0.5"
-              onBlur={e => onRename(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === 'Enter') onRename(e.currentTarget.value);
-                if (e.key === 'Escape') onCancelRename();
-              }}
-            />
-            <button
-              onMouseDown={e => { e.preventDefault(); onDelete(); }}
-              className="p-1 rounded text-[#ccc] dark:text-[#444] hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-all flex-shrink-0"
-              title="Delete item"
-            >
-              <Trash2 className="h-3 w-3" />
-            </button>
-          </div>
+          <input
+            autoFocus
+            defaultValue={item.name}
+            maxLength={80}
+            className="w-full bg-transparent text-sm text-[#111] dark:text-white border-b border-[#ddd] dark:border-[#333] outline-none pb-0.5"
+            onBlur={e => onRename(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') onRename(e.currentTarget.value);
+              if (e.key === 'Escape') onCancelRename();
+            }}
+          />
         ) : (
           <span
             className="text-sm text-[#555] dark:text-[#999] cursor-default select-none"
@@ -1418,27 +1421,25 @@ function ItemRow({
       </div>
 
       {/* Amount */}
-      <AmountCell value={amount} onChange={onAmountChange} />
+      <AmountCell value={amount} onChange={onAmountChange} autoFocus={autoFocusAmount} />
 
-      {/* Clear month amount */}
-      {!isRenaming && (
-        <button
-          onClick={() => onAmountChange(0)}
-          className="opacity-0 group-hover/item:opacity-100 p-1 rounded text-[#ccc] dark:text-[#444] hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-all flex-shrink-0"
-          title="Clear amount for this month"
-        >
-          <X className="h-3 w-3" />
-        </button>
-      )}
+      {/* Remove from this month */}
+      <button
+        onClick={onDelete}
+        className="opacity-0 group-hover/item:opacity-100 p-1 rounded text-[#ccc] dark:text-[#444] hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-all flex-shrink-0"
+        title="Remove from this month"
+      >
+        <X className="h-3 w-3" />
+      </button>
     </div>
   );
 }
 
 // ─── AmountCell ───────────────────────────────────────────────────────────────
 
-function AmountCell({ value, onChange }: { value: number; onChange: (n: number) => void }) {
-  const [editing, setEditing] = useState(false);
-  const [val, setVal] = useState('');
+function AmountCell({ value, onChange, autoFocus }: { value: number; onChange: (n: number) => void; autoFocus?: boolean }) {
+  const [editing, setEditing] = useState(!!autoFocus);
+  const [val, setVal] = useState(autoFocus ? '' : '');
 
   function startEdit() {
     setVal(value > 0 ? String(value) : '');
