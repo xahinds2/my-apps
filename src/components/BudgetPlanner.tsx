@@ -1386,17 +1386,26 @@ function ItemRow({
       {/* Name */}
       <div className="flex-1 min-w-0">
         {isRenaming ? (
-          <input
-            autoFocus
-            defaultValue={item.name}
-            maxLength={80}
-            className="w-full bg-transparent text-sm text-[#111] dark:text-white border-b border-[#ddd] dark:border-[#333] outline-none pb-0.5"
-            onBlur={e => onRename(e.target.value)}
-            onKeyDown={e => {
-              if (e.key === 'Enter') onRename(e.currentTarget.value);
-              if (e.key === 'Escape') onCancelRename();
-            }}
-          />
+          <div className="flex items-center gap-1.5 flex-1 min-w-0">
+            <input
+              autoFocus
+              defaultValue={item.name}
+              maxLength={80}
+              className="flex-1 min-w-0 bg-transparent text-sm text-[#111] dark:text-white border-b border-[#ddd] dark:border-[#333] outline-none pb-0.5"
+              onBlur={e => onRename(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') onRename(e.currentTarget.value);
+                if (e.key === 'Escape') onCancelRename();
+              }}
+            />
+            <button
+              onMouseDown={e => { e.preventDefault(); onDelete(); }}
+              className="p-1 rounded text-[#ccc] dark:text-[#444] hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-all flex-shrink-0"
+              title="Delete item"
+            >
+              <Trash2 className="h-3 w-3" />
+            </button>
+          </div>
         ) : (
           <span
             className="text-sm text-[#555] dark:text-[#999] cursor-default select-none"
@@ -1411,14 +1420,16 @@ function ItemRow({
       {/* Amount */}
       <AmountCell value={amount} onChange={onAmountChange} />
 
-      {/* Delete */}
-      <button
-        onClick={onDelete}
-        className="opacity-0 group-hover/item:opacity-100 p-1 rounded text-[#ccc] dark:text-[#444] hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-all flex-shrink-0"
-        title="Delete item"
-      >
-        <X className="h-3 w-3" />
-      </button>
+      {/* Clear month amount */}
+      {!isRenaming && (
+        <button
+          onClick={() => onAmountChange(0)}
+          className="opacity-0 group-hover/item:opacity-100 p-1 rounded text-[#ccc] dark:text-[#444] hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-all flex-shrink-0"
+          title="Clear amount for this month"
+        >
+          <X className="h-3 w-3" />
+        </button>
+      )}
     </div>
   );
 }
