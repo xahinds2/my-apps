@@ -8,6 +8,8 @@ import { ShoppingBasket, List, ShoppingCart } from 'lucide-react';
 import GroceryList from '@/components/GroceryList';
 import GroceryCart from '@/components/GroceryCart';
 
+export const dynamic = 'force-dynamic';
+
 type Tab = 'list' | 'cart';
 
 function GroceryPageContent() {
