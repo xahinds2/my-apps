@@ -14,7 +14,7 @@ interface CartSession {
 }
 interface PriceEntry {
   _id: string; itemId: string; store: 'zepto' | 'instamart';
-  price: number; unit: string; productName: string; imageUrl?: string; scrapedAt: string;
+  price: number; unit: string; productName: string; productUrl?: string; imageUrl?: string; scrapedAt: string;
 }
 
 const STORE_LABEL: Record<string, string> = { zepto: 'Zepto', instamart: 'Swiggy' };
@@ -122,25 +122,28 @@ function CartPanel({ session, isMain, onUpdate, onDelete, onSendToStore }: CartP
     });
   }
 
+  function scheduleFlush() {
+    if (flushTimer.current) clearTimeout(flushTimer.current);
+    flushTimer.current = setTimeout(flushQty, 500);
+  }
+
   function updateQuantity(itemId: string, newQty: number) {
     const updated = newQty <= 0
       ? { ...session, items: session.items.filter(i => i.itemId !== itemId) }
       : { ...session, items: session.items.map(i => i.itemId === itemId ? { ...i, quantity: newQty } : i) };
     onUpdate(updated);
     pendingQty.current.set(itemId, newQty);
-    if (flushTimer.current) clearTimeout(flushTimer.current);
-    flushTimer.current = setTimeout(flushQty, 600);
+    scheduleFlush();
   }
 
-  async function removeItem(itemId: string) {
-    const res = await fetch(`/api/grocery/cart/${session._id}/items?itemId=${itemId}`, { method: 'DELETE' });
-    const json = await res.json();
-    if (json.data) onUpdate(json.data);
+  function removeItem(itemId: string) {
+    updateQuantity(itemId, 0);
   }
 
-  async function clearCart() {
-    await Promise.all(session.items.map(it => fetch(`/api/grocery/cart/${session._id}/items?itemId=${it.itemId}`, { method: 'DELETE' })));
+  function clearCart() {
+    for (const it of session.items) pendingQty.current.set(it.itemId, 0);
     onUpdate({ ...session, items: [] });
+    scheduleFlush();
   }
 
   async function completeSession() {
@@ -194,7 +197,7 @@ function CartPanel({ session, isMain, onUpdate, onDelete, onSendToStore }: CartP
     : 'border-neutral-200 dark:border-neutral-800';
 
   return (
-    <div className={`mb-4 rounded-xl border overflow-hidden ${borderClass}`}>
+    <div className={`mb-5 rounded-2xl border overflow-hidden ${borderClass}`}>
       {/* Delete confirm */}
       {pendingDelete ? (
         <div className="flex items-center justify-between px-4 py-3 bg-red-50 dark:bg-red-950/40">
@@ -252,7 +255,7 @@ function CartPanel({ session, isMain, onUpdate, onDelete, onSendToStore }: CartP
       )}
 
       {(isMain || !collapsed) && (
-        <div className="px-4 py-3">
+        <div className="px-4 py-4">
           {/* Action bar — hidden for store carts (zepto/instamart) */}
           {isActive && !storeCartType && (
             pendingClear ? (
@@ -289,28 +292,28 @@ function CartPanel({ session, isMain, onUpdate, onDelete, onSendToStore }: CartP
           )}
 
           {session.items.length > 0 ? (
-            <div className="rounded-xl border border-neutral-100 dark:border-neutral-800 mb-1">
+            <div className="rounded-xl border border-neutral-100 dark:border-neutral-800">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-neutral-50 dark:bg-neutral-900/60">
-                    <th className="text-left px-3 py-2.5 text-xs font-semibold text-neutral-500 dark:text-neutral-400 w-[40%] rounded-tl-xl">Item</th>
+                    <th className="text-left px-3 py-3 text-xs font-semibold text-neutral-500 dark:text-neutral-400 w-[40%] rounded-tl-xl">Item</th>
                     {/* Store cart: show only relevant store */}
                     {storeCartType ? (
-                      <th className="text-right px-3 py-2.5 text-xs font-semibold">
+                      <th className="text-right px-3 py-3 text-xs font-semibold">
                         <span className="flex items-center justify-end gap-1 text-neutral-500 dark:text-neutral-400">
-                          <img src={STORE_FAVICON[storeCartType]} width={11} height={11} alt="" className="rounded-sm" /> Price
+                          <img src={STORE_FAVICON[storeCartType]} width={12} height={12} alt="" className="rounded-sm" /> Price
                         </span>
                       </th>
                     ) : (
                       <>
-                        <th className="text-right px-3 py-2.5 text-xs font-semibold">
+                        <th className="text-right px-3 py-3 text-xs font-semibold">
                           <span className="flex items-center justify-end gap-1 text-neutral-500 dark:text-neutral-400">
-                            <img src={STORE_FAVICON.zepto} width={11} height={11} alt="" className="rounded-sm" /> Zepto
+                            <img src={STORE_FAVICON.zepto} width={12} height={12} alt="" className="rounded-sm" /> Zepto
                           </span>
                         </th>
-                        <th className="text-right px-3 py-2.5 text-xs font-semibold">
+                        <th className="text-right px-3 py-3 text-xs font-semibold">
                           <span className="flex items-center justify-end gap-1 text-neutral-500 dark:text-neutral-400">
-                            <img src={STORE_FAVICON.instamart} width={11} height={11} alt="" className="rounded-sm" /> Swiggy
+                            <img src={STORE_FAVICON.instamart} width={12} height={12} alt="" className="rounded-sm" /> Swiggy
                           </span>
                         </th>
                       </>
@@ -326,23 +329,30 @@ function CartPanel({ session, isMain, onUpdate, onDelete, onSendToStore }: CartP
                     const sp = storeCartType ? getPriceForItem(item.itemId, storeCartType) : null;
                     return (
                       <tr key={item.itemId} className="group">
-                        <td className="px-3 py-2.5">
-                          <div className="flex items-center gap-2">
-                            {(sp?.imageUrl) ? (
-                              <img src={sp.imageUrl} alt={sp.productName} className="w-8 h-8 rounded-lg object-contain bg-neutral-100 dark:bg-neutral-800 shrink-0" />
-                            ) : itemImages.has(item.itemId) ? (
-                              <img src={itemImages.get(item.itemId)} alt={item.itemName} className="w-8 h-8 rounded-lg object-contain bg-neutral-100 dark:bg-neutral-800 shrink-0"
-                                onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
-                            ) : <div className="w-8 h-8 rounded-lg bg-neutral-100 dark:bg-neutral-800 shrink-0" />}
+                        <td className="px-3 py-3">
+                          <div className="flex items-center gap-3">
+                            {(() => { const url = sp?.productUrl || prices.find(p => p.itemId === item.itemId && p.productUrl)?.productUrl;
+                              const imgEl = (sp?.imageUrl) ? (
+                                <img src={sp.imageUrl} alt={sp.productName} className="w-10 h-10 rounded-lg object-contain bg-neutral-100 dark:bg-neutral-800 shrink-0" />
+                              ) : itemImages.has(item.itemId) ? (
+                                <img src={itemImages.get(item.itemId)} alt={item.itemName} className="w-10 h-10 rounded-lg object-contain bg-neutral-100 dark:bg-neutral-800 shrink-0"
+                                  onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+                              ) : <div className="w-10 h-10 rounded-lg bg-neutral-100 dark:bg-neutral-800 shrink-0" />;
+                              return url ? <a href={url} target="_blank" rel="noopener noreferrer" className="shrink-0">{imgEl}</a> : imgEl;
+                            })()}
                             <div>
-                              <div className="font-medium text-neutral-900 dark:text-white text-xs leading-snug">{sp ? sp.productName : item.itemName}</div>
+                              {(() => { const url = sp?.productUrl || prices.find(p => p.itemId === item.itemId && p.productUrl)?.productUrl; return url ? (
+                                <a href={url} target="_blank" rel="noopener noreferrer" className="font-medium text-neutral-900 dark:text-white text-[13px] leading-snug hover:underline">{sp ? sp.productName : item.itemName}</a>
+                              ) : (
+                                <div className="font-medium text-neutral-900 dark:text-white text-[13px] leading-snug">{sp ? sp.productName : item.itemName}</div>
+                              ); })()}
                               {isActive ? (
-                                <div className="flex items-center gap-1 mt-0.5">
-                                  <button onClick={() => updateQuantity(item.itemId, item.quantity - 1)} className="w-4 h-4 flex items-center justify-center rounded border border-neutral-200 dark:border-neutral-700 text-neutral-400 hover:text-red-500 transition-colors"><Minus size={8} /></button>
-                                  <span className="text-xs font-medium text-neutral-600 dark:text-neutral-400 w-4 text-center">{item.quantity}</span>
-                                  <button onClick={() => updateQuantity(item.itemId, item.quantity + 1)} className="w-4 h-4 flex items-center justify-center rounded border border-neutral-200 dark:border-neutral-700 text-neutral-400 hover:text-emerald-500 transition-colors"><Plus size={8} /></button>
+                                <div className="flex items-center gap-1.5 mt-1">
+                                  <button onClick={() => updateQuantity(item.itemId, item.quantity - 1)} className="w-5 h-5 flex items-center justify-center rounded border border-neutral-200 dark:border-neutral-700 text-neutral-400 hover:text-red-500 transition-colors"><Minus size={10} /></button>
+                                  <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-300 w-4 text-center">{item.quantity}</span>
+                                  <button onClick={() => updateQuantity(item.itemId, item.quantity + 1)} className="w-5 h-5 flex items-center justify-center rounded border border-neutral-200 dark:border-neutral-700 text-neutral-400 hover:text-emerald-500 transition-colors"><Plus size={10} /></button>
                                 </div>
-                              ) : item.quantity > 1 && <div className="text-xs text-neutral-400">×{item.quantity}</div>}
+                              ) : item.quantity > 1 && <div className="text-xs text-neutral-400 mt-0.5">×{item.quantity}</div>}
                               {sp?.unit && <div className="text-xs text-neutral-400 mt-1">{sp.unit}</div>}
                             </div>
                           </div>
@@ -350,7 +360,7 @@ function CartPanel({ session, isMain, onUpdate, onDelete, onSendToStore }: CartP
 
                         {storeCartType ? (
                           // Store cart: single price column
-                          <td className="px-3 py-2.5 text-right">
+                          <td className="px-3 py-3 text-right">
                             {(() => { const p = getBestPriceForItem(item.itemId, storeCartType);
                               const otherStore = storeCartType === 'zepto' ? 'instamart' : 'zepto';
                               const op = getBestPriceForItem(item.itemId, otherStore);
@@ -370,7 +380,7 @@ function CartPanel({ session, isMain, onUpdate, onDelete, onSendToStore }: CartP
                         ) : (
                           // Main cart: click price to directly send to store cart
                           <>
-                            <td className="px-3 py-2.5 text-right">
+                            <td className="px-3 py-3 text-right">
                               {zp ? (
                                 <div className="relative group/price inline-block text-right">
                                   <button onClick={() => onSendToStore?.(item, 'zepto')} className="text-right hover:opacity-70 transition-opacity" title="Add to Zepto cart">
@@ -391,7 +401,7 @@ function CartPanel({ session, isMain, onUpdate, onDelete, onSendToStore }: CartP
                                 </a>
                               )}
                             </td>
-                            <td className="px-3 py-2.5 text-right">
+                            <td className="px-3 py-3 text-right">
                               {ip ? (
                                 <div className="relative group/price inline-block text-right">
                                   <button onClick={() => onSendToStore?.(item, 'instamart')} className="text-right hover:opacity-70 transition-opacity" title="Add to Swiggy cart">
@@ -415,7 +425,7 @@ function CartPanel({ session, isMain, onUpdate, onDelete, onSendToStore }: CartP
                           </>
                         )}
 
-                        <td className="pr-2 py-2.5">
+                        <td className="pr-3 py-3">
                           <div className="flex items-center justify-end gap-0.5">
                             <button onClick={() => openMappingModal(item.itemId, item.itemName)} title="Map product" className="p-0.5 opacity-0 group-hover:opacity-100 text-neutral-300 dark:text-neutral-600 hover:text-blue-500 transition-opacity">
                               <SlidersHorizontal size={11} />
@@ -435,8 +445,8 @@ function CartPanel({ session, isMain, onUpdate, onDelete, onSendToStore }: CartP
                 {!storeCartType && (zeptoTotal || instamartTotal) && (
                   <tfoot>
                     <tr className="bg-neutral-50 dark:bg-neutral-900/60 border-t border-neutral-100 dark:border-neutral-800">
-                      <td className="px-3 py-2.5 text-xs font-semibold text-neutral-500 dark:text-neutral-400">Total</td>
-                      <td className="px-3 py-2.5 text-right">
+                      <td className="px-3 py-3 text-xs font-semibold text-neutral-500 dark:text-neutral-400">Total</td>
+                      <td className="px-3 py-3 text-right">
                         {zeptoTotal ? (
                           <div>
                             <span className="font-bold text-sm text-white">
@@ -446,7 +456,7 @@ function CartPanel({ session, isMain, onUpdate, onDelete, onSendToStore }: CartP
                           </div>
                         ) : <span className="text-xs text-neutral-400">—</span>}
                       </td>
-                      <td className="px-3 py-2.5 text-right">
+                      <td className="px-3 py-3 text-right">
                         {instamartTotal ? (
                           <div>
                             <span className="font-bold text-sm text-white">

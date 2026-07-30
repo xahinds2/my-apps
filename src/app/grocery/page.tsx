@@ -63,8 +63,7 @@ export default function GroceryPage() {
           </div>
         ) : (
           <>
-            {/* List stays mounted; cart remounts on tab switch to always fetch fresh data */}
-            <div className={tab !== 'list' ? 'hidden' : ''}><GroceryList /></div>
+            {tab === 'list' && <GroceryList />}
             {tab === 'cart' && <GroceryCart />}
           </>
         )}

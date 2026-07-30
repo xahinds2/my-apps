@@ -136,6 +136,7 @@ export default function GroceryList() {
 
   // itemId → best available scraped imageUrl
   const [itemImages, setItemImages] = useState<Map<string, string>>(new Map());
+  const [imagesLoaded, setImagesLoaded] = useState(false);
   // itemId → min price (mapped products first, fallback to all scraped prices)
   const [itemMinPrices, setItemMinPrices] = useState<Map<string, number>>(new Map());
   const nameRef = useRef<HTMLInputElement>(null);
@@ -163,7 +164,7 @@ export default function GroceryList() {
 
   function scheduleFlush() {
     if (flushTimer.current) clearTimeout(flushTimer.current);
-    flushTimer.current = setTimeout(flushNow, 700);
+    flushTimer.current = setTimeout(flushNow, 500);
   }
 
   async function fetchAll() {
@@ -213,6 +214,7 @@ export default function GroceryList() {
             imageMap.set(e.itemId, e.imageUrl);
           }
           setItemImages(imageMap);
+          setImagesLoaded(true);
 
           const avgPriceMap = new Map<string, number>();
           for (const itm of fetched) {
@@ -442,58 +444,60 @@ export default function GroceryList() {
             <span className="text-xs font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-widest">{CATEGORY_LABEL[cat]}</span>
             <div className="flex-1 h-px bg-neutral-100 dark:bg-neutral-800" />
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
             {grouped[cat].map(item => {
               const emoji = getItemEmoji(item.name);
               const qty = cartQuantities.get(item._id) ?? 0;
               const scrapedImage = itemImages.get(item._id);
+              const inCart = qty > 0;
               return (
               <div
                 key={item._id}
-                className="group flex flex-col rounded-xl overflow-hidden border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-[#111]"
+                className="group relative flex flex-col rounded-xl overflow-hidden border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-[#111] transition-shadow duration-200 hover:shadow-md"
               >
-                <>
-                    {/* Image area — scraped photo > emoji > placeholder; emoji stays as bg fallback */}
-                    <div className="relative flex items-center justify-center h-20 bg-neutral-100 dark:bg-neutral-800/50 overflow-hidden">
-                      {emoji && <span className="absolute text-4xl">{emoji}</span>}
-                      {!emoji && !scrapedImage && <span className="absolute text-2xl opacity-20">🛒</span>}
-                      {scrapedImage && (
-                        <img
-                          src={scrapedImage}
-                          alt={item.name}
-                          className="absolute h-full w-full object-contain p-1 z-10"
-                          onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-                        />
-                      )}
-                    </div>
-                    {/* Content area */}
-                    <div className="flex flex-col gap-1.5 p-2">
-                      <span className="text-xs font-semibold text-neutral-900 dark:text-white leading-snug">{item.name}</span>
-                      {itemMinPrices.has(item._id) && (
-                        <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">from ₹{itemMinPrices.get(item._id)!.toFixed(0)}</span>
-                      )}
-                      <div className="flex items-center gap-0.5">
-                        <a href={`https://www.zepto.com/search?query=${encodeURIComponent(item.name)}`} target="_blank" rel="noopener noreferrer" title="Search on Zepto">
-                          <img src="https://www.google.com/s2/favicons?domain=zepto.com&sz=16" width={12} height={12} alt="Zepto" className="rounded-sm" />
-                        </a>
-                        <a href={`https://www.swiggy.com/instamart/search?query=${encodeURIComponent(item.name)}`} target="_blank" rel="noopener noreferrer" title="Search on Instamart">
-                          <img src="https://www.google.com/s2/favicons?domain=swiggy.com&sz=16" width={12} height={12} alt="Instamart" className="rounded-sm" />
-                        </a>
-                        <button onClick={() => openMappingModal(item._id, item.name)} title="Map product" className="p-0.5 text-neutral-300 dark:text-neutral-600 hover:text-blue-500 transition-colors">
-                          <SlidersHorizontal size={11} />
-                        </button>
-                        <div className="flex-1" />
-                        <button onClick={() => startEdit(item)} title="Edit" className="p-0.5 opacity-0 group-hover:opacity-100 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-opacity">
-                          <Pencil size={11} />
-                        </button>
-                        {qty > 0 ? (
-                          <button onClick={() => removeFromCart(item)} className="p-1 rounded-lg border bg-red-50 dark:bg-red-950/40 border-red-200 dark:border-red-800 text-red-500"><Trash2 size={12} /></button>
-                        ) : (
-                          <button onClick={() => addToCart(item)} className="p-1 rounded-lg border bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-600"><Plus size={12} /></button>
-                        )}
-                      </div>
-                    </div>
-                </>              
+                {/* Image area */}
+                <div className="relative flex items-center justify-center h-28 sm:h-36 bg-neutral-50 dark:bg-neutral-800/40 overflow-hidden">
+                  {imagesLoaded && emoji && !scrapedImage && <span className="text-4xl">{emoji}</span>}
+                  {imagesLoaded && !emoji && !scrapedImage && <span className="text-2xl opacity-15">🛒</span>}
+                  {scrapedImage && (
+                    <img
+                      src={scrapedImage}
+                      alt={item.name}
+                      className="absolute inset-0 h-full w-full object-contain p-1.5"
+                      onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                    />
+                  )}
+                  {/* Hover actions */}
+                  <div className="absolute inset-0 z-10 flex items-start justify-between p-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button onClick={() => openMappingModal(item._id, item.name)} title="Map product" className="p-1.5 rounded-lg bg-white/90 dark:bg-black/60 backdrop-blur-sm text-neutral-500 hover:text-blue-600 dark:text-neutral-400 dark:hover:text-blue-400 transition-colors shadow-sm">
+                      <SlidersHorizontal size={12} />
+                    </button>
+                    <button onClick={() => startEdit(item)} title="Edit" className="p-1.5 rounded-lg bg-white/90 dark:bg-black/60 backdrop-blur-sm text-neutral-500 hover:text-neutral-800 dark:text-neutral-400 dark:hover:text-white transition-colors shadow-sm">
+                      <Pencil size={12} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Content */}
+                <div className="flex flex-col flex-1 px-2 py-1.5">
+                  <span className="text-[13px] font-semibold text-neutral-900 dark:text-white leading-tight line-clamp-2">{item.name}</span>
+                  <div className="mt-auto pt-1 flex items-end justify-between">
+                    {itemMinPrices.has(item._id) ? (
+                      <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">₹{itemMinPrices.get(item._id)!.toFixed(0)}</span>
+                    ) : (
+                      <span className="text-xs text-neutral-300 dark:text-neutral-700">—</span>
+                    )}
+                    {inCart ? (
+                      <button onClick={() => removeFromCart(item)} className="flex items-center gap-1 px-2 py-1 rounded-lg bg-red-500/90 dark:bg-red-600/90 text-white hover:bg-red-600 dark:hover:bg-red-500 text-xs font-medium transition-colors shadow-sm">
+                        <Trash2 size={12} /> Remove
+                      </button>
+                    ) : (
+                      <button onClick={() => addToCart(item)} className="flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-600 dark:bg-emerald-600 text-white hover:bg-emerald-700 dark:hover:bg-emerald-500 text-xs font-medium transition-colors">
+                        <Plus size={12} /> Add
+                      </button>
+                    )}
+                  </div>
+                </div>
               </div>
               );
             })}
