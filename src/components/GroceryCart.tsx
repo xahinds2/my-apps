@@ -93,6 +93,14 @@ function CartPanel({ session, isMain, onUpdate, onDelete, onSendToStore }: CartP
     return prices.find(p => p.itemId === itemId && p.store === store && p.productName === m.productName);
   }
 
+  // Falls back to the cheapest scraped price when no mapping exists yet
+  function getBestPriceForItem(itemId: string, store: 'zepto' | 'instamart'): PriceEntry | undefined {
+    const mapped = getPriceForItem(itemId, store);
+    if (mapped) return mapped;
+    const candidates = prices.filter(p => p.itemId === itemId && p.store === store);
+    return candidates.length ? candidates.reduce((min, p) => p.price < min.price ? p : min) : undefined;
+  }
+
   function storeTotal(store: 'zepto' | 'instamart'): { total: number; partial: boolean } | null {
     if (!session.items.length) return null;
     let total = 0, partial = false;
@@ -245,8 +253,8 @@ function CartPanel({ session, isMain, onUpdate, onDelete, onSendToStore }: CartP
 
       {(isMain || !collapsed) && (
         <div className="px-4 py-3">
-          {/* Action bar */}
-          {isActive && (
+          {/* Action bar — hidden for store carts (zepto/instamart) */}
+          {isActive && !storeCartType && (
             pendingClear ? (
               <div className="flex items-center justify-between mb-3 px-3 py-2 rounded-lg bg-red-50 dark:bg-red-950/40">
                 <span className="text-xs text-red-600 dark:text-red-400 font-medium">Clear all items?</span>
@@ -281,16 +289,16 @@ function CartPanel({ session, isMain, onUpdate, onDelete, onSendToStore }: CartP
           )}
 
           {session.items.length > 0 ? (
-            <div className="rounded-xl border border-neutral-100 dark:border-neutral-800 overflow-hidden mb-1">
+            <div className="rounded-xl border border-neutral-100 dark:border-neutral-800 mb-1">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-neutral-50 dark:bg-neutral-900/60">
-                    <th className="text-left px-3 py-2.5 text-xs font-semibold text-neutral-500 dark:text-neutral-400 w-[40%]">Item</th>
+                    <th className="text-left px-3 py-2.5 text-xs font-semibold text-neutral-500 dark:text-neutral-400 w-[40%] rounded-tl-xl">Item</th>
                     {/* Store cart: show only relevant store */}
                     {storeCartType ? (
                       <th className="text-right px-3 py-2.5 text-xs font-semibold">
                         <span className="flex items-center justify-end gap-1 text-neutral-500 dark:text-neutral-400">
-                          <img src={STORE_FAVICON[storeCartType]} width={11} height={11} alt="" className="rounded-sm" /> {STORE_LABEL[storeCartType]}
+                          <img src={STORE_FAVICON[storeCartType]} width={11} height={11} alt="" className="rounded-sm" /> Price
                         </span>
                       </th>
                     ) : (
@@ -307,24 +315,27 @@ function CartPanel({ session, isMain, onUpdate, onDelete, onSendToStore }: CartP
                         </th>
                       </>
                     )}
-                    <th className="w-8" />
+                    <th className="w-8 rounded-tr-xl" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
                   {session.items.map(item => {
-                    const zp = getPriceForItem(item.itemId, 'zepto');
-                    const ip = getPriceForItem(item.itemId, 'instamart');
+                    const zp = getBestPriceForItem(item.itemId, 'zepto');
+                    const ip = getBestPriceForItem(item.itemId, 'instamart');
                     const cheaper = zp && ip ? (zp.price * item.quantity <= ip.price * item.quantity ? 'zepto' : 'instamart') : null;
+                    const sp = storeCartType ? getPriceForItem(item.itemId, storeCartType) : null;
                     return (
                       <tr key={item.itemId} className="group">
                         <td className="px-3 py-2.5">
                           <div className="flex items-center gap-2">
-                            {itemImages.has(item.itemId) ? (
+                            {(sp?.imageUrl) ? (
+                              <img src={sp.imageUrl} alt={sp.productName} className="w-8 h-8 rounded-lg object-contain bg-neutral-100 dark:bg-neutral-800 shrink-0" />
+                            ) : itemImages.has(item.itemId) ? (
                               <img src={itemImages.get(item.itemId)} alt={item.itemName} className="w-8 h-8 rounded-lg object-contain bg-neutral-100 dark:bg-neutral-800 shrink-0"
                                 onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
                             ) : <div className="w-8 h-8 rounded-lg bg-neutral-100 dark:bg-neutral-800 shrink-0" />}
                             <div>
-                              <div className="font-medium text-neutral-900 dark:text-white text-xs leading-snug">{item.itemName}</div>
+                              <div className="font-medium text-neutral-900 dark:text-white text-xs leading-snug">{sp ? sp.productName : item.itemName}</div>
                               {isActive ? (
                                 <div className="flex items-center gap-1 mt-0.5">
                                   <button onClick={() => updateQuantity(item.itemId, item.quantity - 1)} className="w-4 h-4 flex items-center justify-center rounded border border-neutral-200 dark:border-neutral-700 text-neutral-400 hover:text-red-500 transition-colors"><Minus size={8} /></button>
@@ -332,6 +343,7 @@ function CartPanel({ session, isMain, onUpdate, onDelete, onSendToStore }: CartP
                                   <button onClick={() => updateQuantity(item.itemId, item.quantity + 1)} className="w-4 h-4 flex items-center justify-center rounded border border-neutral-200 dark:border-neutral-700 text-neutral-400 hover:text-emerald-500 transition-colors"><Plus size={8} /></button>
                                 </div>
                               ) : item.quantity > 1 && <div className="text-xs text-neutral-400">×{item.quantity}</div>}
+                              {sp?.unit && <div className="text-xs text-neutral-400 mt-1">{sp.unit}</div>}
                             </div>
                           </div>
                         </td>
@@ -339,11 +351,14 @@ function CartPanel({ session, isMain, onUpdate, onDelete, onSendToStore }: CartP
                         {storeCartType ? (
                           // Store cart: single price column
                           <td className="px-3 py-2.5 text-right">
-                            {(() => { const p = getPriceForItem(item.itemId, storeCartType);
+                            {(() => { const p = getBestPriceForItem(item.itemId, storeCartType);
+                              const otherStore = storeCartType === 'zepto' ? 'instamart' : 'zepto';
+                              const op = getBestPriceForItem(item.itemId, otherStore);
+                              const cheaper = op && p && p.price * item.quantity <= op.price * item.quantity;
                               return p ? (
                                 <button onClick={() => openMappingModal(item.itemId, item.itemName)} className="text-right hover:opacity-70 transition-opacity">
                                   <div className="font-semibold text-xs text-neutral-900 dark:text-white">₹{(p.price * item.quantity).toFixed(0)}</div>
-                                  <div className={`text-xs ${ageFreshness(p.scrapedAt)}`}>{priceAge(p.scrapedAt)}</div>
+                                  <div className={`text-xs ${cheaper && op ? 'text-emerald-500' : ageFreshness(p.scrapedAt)}`}>{cheaper && op ? `-₹${((op.price - p.price) * item.quantity).toFixed(0)}` : priceAge(p.scrapedAt)}</div>
                                 </button>
                               ) : (
                                 <a href={storeCartType === 'zepto' ? `https://www.zepto.com/search?query=${encodeURIComponent(item.itemName)}` : `https://www.swiggy.com/instamart/search?query=${encodeURIComponent(item.itemName)}`} target="_blank" rel="noopener noreferrer" className="inline-flex hover:scale-110 transition-transform">
@@ -357,10 +372,19 @@ function CartPanel({ session, isMain, onUpdate, onDelete, onSendToStore }: CartP
                           <>
                             <td className="px-3 py-2.5 text-right">
                               {zp ? (
-                                <button onClick={() => onSendToStore?.(item, 'zepto')} className="text-right hover:opacity-70 transition-opacity" title="Add to Zepto cart">
-                                  <div className="font-semibold text-xs text-white">₹{(zp.price * item.quantity).toFixed(0)}</div>
-                                  <div className={`text-xs ${cheaper === 'zepto' && ip ? 'text-emerald-500' : ageFreshness(zp.scrapedAt)}`}>{cheaper === 'zepto' && ip ? `-₹${((ip.price - zp.price) * item.quantity).toFixed(0)}` : priceAge(zp.scrapedAt)}</div>
-                                </button>
+                                <div className="relative group/price inline-block text-right">
+                                  <button onClick={() => onSendToStore?.(item, 'zepto')} className="text-right hover:opacity-70 transition-opacity" title="Add to Zepto cart">
+                                    <div className="font-semibold text-xs text-white">₹{(zp.price * item.quantity).toFixed(0)}</div>
+                                    <div className={`text-xs ${cheaper === 'zepto' && ip ? 'text-emerald-500' : ageFreshness(zp.scrapedAt)}`}>{cheaper === 'zepto' && ip ? `-₹${((ip.price - zp.price) * item.quantity).toFixed(0)}` : priceAge(zp.scrapedAt)}</div>
+                                  </button>
+                                  <div className="pointer-events-none absolute bottom-full right-0 mb-1.5 hidden group-hover/price:flex z-20 items-center gap-2 bg-neutral-900 dark:bg-neutral-800 border border-neutral-700 rounded-lg px-2.5 py-2 shadow-xl w-max max-w-[220px] text-left">
+                                    {zp.imageUrl && <img src={zp.imageUrl} alt="" className="w-8 h-8 rounded object-contain bg-neutral-800 shrink-0" />}
+                                    <div>
+                                      <div className="text-xs text-white font-medium leading-snug">{zp.productName}</div>
+                                      {zp.unit && <div className="text-xs text-neutral-400 mt-0.5">{zp.unit}</div>}
+                                    </div>
+                                  </div>
+                                </div>
                               ) : (
                                 <a href={`https://www.zepto.com/search?query=${encodeURIComponent(item.itemName)}`} target="_blank" rel="noopener noreferrer" className="inline-flex hover:scale-110 transition-transform">
                                   <img src={STORE_FAVICON.zepto} width={13} height={13} alt="Search Zepto" className="rounded-sm" />
@@ -369,10 +393,19 @@ function CartPanel({ session, isMain, onUpdate, onDelete, onSendToStore }: CartP
                             </td>
                             <td className="px-3 py-2.5 text-right">
                               {ip ? (
-                                <button onClick={() => onSendToStore?.(item, 'instamart')} className="text-right hover:opacity-70 transition-opacity" title="Add to Swiggy cart">
-                                  <div className="font-semibold text-xs text-white">₹{(ip.price * item.quantity).toFixed(0)}</div>
-                                  <div className={`text-xs ${cheaper === 'instamart' && zp ? 'text-emerald-500' : ageFreshness(ip.scrapedAt)}`}>{cheaper === 'instamart' && zp ? `-₹${((zp.price - ip.price) * item.quantity).toFixed(0)}` : priceAge(ip.scrapedAt)}</div>
-                                </button>
+                                <div className="relative group/price inline-block text-right">
+                                  <button onClick={() => onSendToStore?.(item, 'instamart')} className="text-right hover:opacity-70 transition-opacity" title="Add to Swiggy cart">
+                                    <div className="font-semibold text-xs text-white">₹{(ip.price * item.quantity).toFixed(0)}</div>
+                                    <div className={`text-xs ${cheaper === 'instamart' && zp ? 'text-emerald-500' : ageFreshness(ip.scrapedAt)}`}>{cheaper === 'instamart' && zp ? `-₹${((zp.price - ip.price) * item.quantity).toFixed(0)}` : priceAge(ip.scrapedAt)}</div>
+                                  </button>
+                                  <div className="pointer-events-none absolute bottom-full right-0 mb-1.5 hidden group-hover/price:flex z-20 items-center gap-2 bg-neutral-900 dark:bg-neutral-800 border border-neutral-700 rounded-lg px-2.5 py-2 shadow-xl w-max max-w-[220px] text-left">
+                                    {ip.imageUrl && <img src={ip.imageUrl} alt="" className="w-8 h-8 rounded object-contain bg-neutral-800 shrink-0" />}
+                                    <div>
+                                      <div className="text-xs text-white font-medium leading-snug">{ip.productName}</div>
+                                      {ip.unit && <div className="text-xs text-neutral-400 mt-0.5">{ip.unit}</div>}
+                                    </div>
+                                  </div>
+                                </div>
                               ) : (
                                 <a href={`https://www.swiggy.com/instamart/search?query=${encodeURIComponent(item.itemName)}`} target="_blank" rel="noopener noreferrer" className="inline-flex hover:scale-110 transition-transform">
                                   <img src={STORE_FAVICON.instamart} width={13} height={13} alt="Search Swiggy" className="rounded-sm" />
@@ -384,7 +417,7 @@ function CartPanel({ session, isMain, onUpdate, onDelete, onSendToStore }: CartP
 
                         <td className="pr-2 py-2.5">
                           <div className="flex items-center justify-end gap-0.5">
-                            <button onClick={() => openMappingModal(item.itemId, item.itemName)} title="Map product" className="p-0.5 text-neutral-300 dark:text-neutral-600 hover:text-blue-500 transition-colors">
+                            <button onClick={() => openMappingModal(item.itemId, item.itemName)} title="Map product" className="p-0.5 opacity-0 group-hover:opacity-100 text-neutral-300 dark:text-neutral-600 hover:text-blue-500 transition-opacity">
                               <SlidersHorizontal size={11} />
                             </button>
                             {isActive && (
