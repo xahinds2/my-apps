@@ -34,7 +34,7 @@ function applyRateLimit(req: NextRequest): NextResponse | null {
 
 export default clerkMiddleware(async (auth, req) => {
   // Protect pages that require authentication
-  if (req.nextUrl.pathname.startsWith('/finance') || req.nextUrl.pathname.startsWith('/manifest')) {
+  if (req.nextUrl.pathname.startsWith('/finance') || req.nextUrl.pathname.startsWith('/manifest') || req.nextUrl.pathname.startsWith('/grocery')) {
     await auth.protect();
   }
 

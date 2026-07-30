@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ShoppingBag, CreditCard, Activity, BarChart2, Map, ArrowUpRight } from 'lucide-react';
+import { ShoppingBag, CreditCard, Activity, BarChart2, Map, ShoppingBasket, ArrowUpRight } from 'lucide-react';
 import AuthButton from '@/components/AuthButton';
 
 const SOCIAL = [
@@ -65,6 +65,16 @@ const LIVE_APPS = [
     iconCls: 'bg-blue-500/10 border-blue-500/20 text-blue-400',
     badge: 'bg-blue-500/10 border-blue-500/20 text-blue-400',
     cardHover: 'hover:border-blue-300 dark:hover:border-blue-800',
+  },
+  {
+    name: 'Grocery',
+    slug: '/grocery',
+    icon: ShoppingBasket,
+    desc: 'Track grocery prices across Zepto and Instamart — build a cart and compare store totals before you shop.',
+    tech: ['Next.js', 'MongoDB', 'Extension', 'Scraper'],
+    iconCls: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400',
+    badge: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400',
+    cardHover: 'hover:border-emerald-300 dark:hover:border-emerald-800',
   },
 ];
 

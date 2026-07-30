@@ -1,0 +1,40 @@
+{
+  "zepto": {
+    "hosts": ["zepto.com"],
+    "card": "a[href*=\"/pn/\"]",
+    "name": {
+      "type": "structural",
+      "rule": "first-alpha-span",
+      "notes": "Zepto uses hashed class names. Name is the first span whose text starts with a letter."
+    },
+    "price": {
+      "type": "structural",
+      "rule": "first-rupee-span",
+      "notes": "First span whose text matches /^₹[\\d.]+$/"
+    },
+    "unit": {
+      "type": "structural",
+      "rule": "first-digit-span",
+      "notes": "First span starting with a digit — e.g. '1 pack (500 ml)', '500 g'. Avoids review-count spans that were matched by last-span."
+    }
+  },
+  "instamart": {
+    "hosts": ["instamart.in", "swiggy.com"],
+    "card": "div:has(> [data-testid=\"item-collection-card-full\"])",
+    "name": {
+      "type": "structural",
+      "rule": "img-alt",
+      "notes": "Swiggy uses hashed CSS-module classes. Product name is reliably in the product image alt attribute."
+    },
+    "price": {
+      "type": "structural",
+      "rule": "first-visible-number",
+      "notes": "Swiggy renders \u20b9 via CSS ::before — textContent is a plain number. First leaf element without aria-hidden containing a pure number is the current price."
+    },
+    "unit": {
+      "type": "structural",
+      "rule": "first-unit-text",
+      "notes": "First element (< 30 chars) whose textContent matches a weight/volume pattern, e.g. '500 ml', '1 kg'."
+    }
+  }
+}

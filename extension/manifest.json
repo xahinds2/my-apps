@@ -1,0 +1,51 @@
+{
+  "manifest_version": 3,
+  "name": "Grocery Price Tracker",
+  "version": "1.0",
+  "description": "Auto-scrapes grocery prices from Zepto and Instamart into your price tracker.",
+  "permissions": ["storage", "tabs"],
+  "host_permissions": [
+    "https://www.zepto.com/*",
+    "https://instamart.in/*",
+    "https://www.swiggy.com/*",
+    "http://localhost:3000/*",
+    "https://*.vercel.app/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.zepto.com/search*",
+        "https://www.zepto.com/cn/*",
+        "https://www.zepto.com/c/*",
+        "https://instamart.in/search*",
+        "https://instamart.in/c/*",
+        "https://instamart.in/collection/*",
+        "https://www.swiggy.com/instamart/search*",
+        "https://www.swiggy.com/instamart/c/*",
+        "https://www.swiggy.com/instamart/collection/*"
+      ],
+      "js": ["scraper-utils.js", "store-selectors.js", "content-scraper.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [{ "resources": ["selectors.json"], "matches": ["<all_urls>"] }],
+  "icons": {
+    "16": "icon16.png",
+    "32": "icon32.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Grocery Price Tracker",
+    "default_icon": {
+      "16": "icon16.png",
+      "32": "icon32.png",
+      "48": "icon48.png",
+      "128": "icon128.png"
+    }
+  }
+}

@@ -3,6 +3,7 @@ import Link from 'next/link';
 const APPS = [
 	{ label: 'Manifest', href: '/manifest', desc: 'Track things you want' },
 	{ label: 'Finance', href: '/finance', desc: 'Budget & allocations' },
+	{ label: 'Grocery', href: '/grocery', desc: 'Price tracker for Pune' },
 ];
 
 const COMING = ['Flex Cards', 'Healthify', 'Travel'];

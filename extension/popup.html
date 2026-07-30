@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, sans-serif; }
+    body { width: 300px; background: #0a0a0a; color: #fff; }
+
+    .header { padding: 14px 16px 12px; border-bottom: 1px solid #1a1a1a; display: flex; align-items: center; gap: 8px; }
+    .header-icon { font-size: 16px; }
+    .header-title { font-size: 13px; font-weight: 700; color: #4ade80; }
+
+    .status-bar { padding: 10px 16px; border-bottom: 1px solid #1a1a1a; display: flex; align-items: center; gap: 8px; }
+    .status-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .status-dot.active { background: #4ade80; box-shadow: 0 0 6px #4ade8088; }
+    .status-dot.inactive { background: #333; }
+    .status-text { font-size: 11px; color: #888; }
+    .status-text span { color: #ccc; font-weight: 600; }
+
+    .stores { padding: 10px 16px; border-bottom: 1px solid #1a1a1a; }
+    .stores-label { font-size: 10px; color: #444; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 7px; }
+    .store-list { display: flex; flex-wrap: wrap; gap: 5px; }
+    .store-pill { font-size: 10px; padding: 3px 8px; border-radius: 99px; border: 1px solid #222; color: #555; display: flex; align-items: center; gap: 4px; }
+    .store-pill.supported { border-color: #16a34a44; color: #4ade80; }
+    .store-pill.current { border-color: #16a34a; background: #16a34a22; color: #86efac; font-weight: 600; }
+    .store-pill .dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+
+    .history { padding: 10px 16px; }
+    .history-label { font-size: 10px; color: #444; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 7px; }
+    .history-empty { font-size: 11px; color: #333; text-align: center; padding: 12px 0; }
+    .scrape-item { padding: 7px 0; border-bottom: 1px solid #111; }
+    .scrape-item:last-child { border-bottom: none; }
+    .scrape-meta { display: flex; align-items: center; justify-content: space-between; margin-bottom: 3px; }
+    .scrape-store { font-size: 10px; font-weight: 700; text-transform: capitalize; }
+    .scrape-store.zepto { color: #a78bfa; }
+    .scrape-store.instamart { color: #fb923c; }
+    .scrape-count { font-size: 10px; color: #555; }
+    .scrape-time { font-size: 10px; color: #333; }
+    .scrape-alert { font-size: 10px; color: #fbbf24; margin-bottom: 2px; }
+    .scrape-unmatched { font-size: 10px; color: #555; }
+
+    .settings { padding: 10px 16px; border-top: 1px solid #1a1a1a; }
+    .settings-label { font-size: 10px; color: #444; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 7px; }
+    .settings-row { display: flex; gap: 6px; }
+    .settings-row input { flex: 1; background: #111; border: 1px solid #222; border-radius: 5px; color: #ccc; font-size: 11px; padding: 5px 8px; outline: none; }
+    .settings-row input:focus { border-color: #4ade8066; }
+    .settings-row button { background: #16a34a; border: none; border-radius: 5px; color: #fff; cursor: pointer; font-size: 11px; font-weight: 600; padding: 5px 10px; }
+    .settings-status { font-size: 10px; margin-top: 5px; height: 12px; }
+    .settings-status.ok { color: #4ade80; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <span class="header-icon">🛒</span>
+    <span class="header-title">Grocery Price Tracker</span>
+  </div>
+
+  <div class="status-bar">
+    <div class="status-dot" id="statusDot"></div>
+    <div class="status-text" id="statusText">Checking page…</div>
+  </div>
+
+  <div class="stores">
+    <div class="stores-label">Supported stores</div>
+    <div class="store-list" id="storeList"></div>
+  </div>
+
+  <div class="history">
+    <div class="history-label">Recent scrapes</div>
+    <div id="historyList"><div class="history-empty">No scrapes yet — browse a search page.</div></div>
+  </div>
+
+  <div class="settings">
+    <div class="settings-label">API URL</div>
+    <div class="settings-row">
+      <input type="text" id="apiUrl" placeholder="http://localhost:3000" />
+      <button id="save">Save</button>
+    </div>
+    <div class="settings-status" id="status"></div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
