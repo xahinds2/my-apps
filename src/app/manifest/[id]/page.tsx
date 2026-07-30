@@ -2,6 +2,7 @@
 
 export const dynamic = 'force-dynamic';
 
+import { Suspense } from 'react';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@clerk/nextjs';
@@ -514,5 +515,5 @@ export default function ManifestDetailRoute() {
 	const manifestItemId = params?.id as string;
 	if (!manifestItemId) return null;
 	if (!hasClerk) return <ManifestDetailPage manifestItemId={manifestItemId} isSignedIn={false} />;
-	return <AuthManifestDetailPage manifestItemId={manifestItemId} />;
+	return <Suspense><AuthManifestDetailPage manifestItemId={manifestItemId} /></Suspense>;
 }

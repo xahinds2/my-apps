@@ -2,6 +2,7 @@
 
 export const dynamic = 'force-dynamic';
 
+import { Suspense } from 'react';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@clerk/nextjs';
@@ -577,5 +578,5 @@ const hasClerk = !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
 
 export default function ManifestRoute() {
 	if (!hasClerk) return <ManifestPage isSignedIn={false} />;
-	return <AuthManifestPage />;
+	return <Suspense><AuthManifestPage /></Suspense>;
 }

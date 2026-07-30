@@ -2,6 +2,7 @@
 
 export const dynamic = 'force-dynamic';
 
+import { Suspense } from 'react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@clerk/nextjs';
@@ -27,6 +28,10 @@ function getOwnerLabel(ownerUserId: string, users: ShareableUser[]) {
 }
 
 export default function SharedManifestPage() {
+  return <Suspense><SharedManifestPageContent /></Suspense>;
+}
+
+function SharedManifestPageContent() {
   const { isSignedIn, isLoaded } = useAuth();
   const [loading, setLoading] = useState(true);
   const [usersLoading, setUsersLoading] = useState(true);
