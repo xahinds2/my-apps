@@ -179,7 +179,8 @@ export default function GroceryList() {
       const fetched: GroceryItem[] = itemsJson.data ?? [];
       setItems(fetched);
 
-      const active = (cartJson.data ?? []).find((s: { status: string; _id: string }) => s.status === 'active');
+      const allCarts: { status: string; _id: string; cartType?: string; items?: { itemId: string; quantity: number }[] }[] = cartJson.data ?? [];
+      const active = allCarts.find(s => s.cartType === 'main' && s.status === 'active') ?? allCarts.find(s => s.status === 'active');
       setActiveCartId(active?._id ?? null);
       cartIdRef.current = active?._id ?? null;
       const qtyMap = new Map<string, number>();
@@ -275,7 +276,8 @@ export default function GroceryList() {
   async function addToCart(item: GroceryItem) {
     let cartId = activeCartId;
     if (!cartId) {
-      const res = await fetch('/api/grocery/cart', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+      // Ensure main cart exists
+      const res = await fetch('/api/grocery/cart', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cartType: 'main' }) });
       const json = await res.json();
       cartId = json.data?._id ?? null;
       if (cartId) { setActiveCartId(cartId); cartIdRef.current = cartId; }
