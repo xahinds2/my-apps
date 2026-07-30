@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Trash2, Pencil, Check, X, SlidersHorizontal } from 'lucide-react';
+import { Plus, Trash2, Pencil, X, SlidersHorizontal } from 'lucide-react';
 import ProductMappingModal from '@/components/ProductMappingModal';
 import { CATEGORIES, type GroceryCategory } from '@/features/grocery/types';
 
@@ -29,14 +29,6 @@ interface ProductMapping {
   itemId: string;
   store: 'zepto' | 'instamart';
   productName: string;
-}
-
-function priceAge(scrapedAt: string): string {
-  const diff = Date.now() - new Date(scrapedAt).getTime();
-  const days = Math.floor(diff / 86400000);
-  if (days === 0) return 'today';
-  if (days === 1) return '1d ago';
-  return `${days}d ago`;
 }
 
 // Keyword → emoji for common grocery items
@@ -89,18 +81,6 @@ function getItemEmoji(name: string): string | null {
   return match ? match[1] : null;
 }
 
-const CATEGORY_IMG_BG: Record<GroceryCategory, string> = {
-  vegetables:    'bg-green-100    dark:bg-green-900/40',
-  fruits:        'bg-orange-100   dark:bg-orange-900/40',
-  dairy:         'bg-sky-100      dark:bg-sky-900/40',
-  grains:        'bg-amber-100    dark:bg-amber-900/40',
-  snacks:        'bg-violet-100   dark:bg-violet-900/40',
-  beverages:     'bg-teal-100     dark:bg-teal-900/40',
-  household:     'bg-slate-100    dark:bg-slate-700/50',
-  personal_care: 'bg-rose-100     dark:bg-rose-900/40',
-  other:         'bg-neutral-100  dark:bg-neutral-700/50',
-};
-
 const CATEGORY_LABEL: Record<GroceryCategory, string> = {
   vegetables: '🥦 Vegetables',
   fruits: '🍎 Fruits',
@@ -148,7 +128,7 @@ export default function GroceryList() {
   useEffect(() => { fetchAll(); }, []);
 
   // Flush remaining ops on unmount
-  useEffect(() => () => { if (flushTimer.current) { clearTimeout(flushTimer.current); flushNow(); } }, []);
+  useEffect(() => () => { if (flushTimer.current) { clearTimeout(flushTimer.current); void flushNow(); } }, []);
 
   async function flushNow() {
     const cartId = cartIdRef.current;
@@ -295,7 +275,7 @@ export default function GroceryList() {
   async function removeFromCart(item: GroceryItem) {
     if (!activeCartId) return;
     const newQty = Math.max(0, (cartQuantities.get(item._id) ?? 0) - 1);
-    setCartQuantities(prev => { const m = new Map(prev); newQty === 0 ? m.delete(item._id) : m.set(item._id, newQty); return m; });
+    setCartQuantities(prev => { const m = new Map(prev); if (newQty === 0) m.delete(item._id); else m.set(item._id, newQty); return m; });
     const p = pendingQty.current.get(item._id);
     if (p) p.qty = newQty; else pendingQty.current.set(item._id, { item, qty: newQty });
     scheduleFlush();

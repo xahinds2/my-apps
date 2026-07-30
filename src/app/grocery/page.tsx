@@ -1,5 +1,6 @@
 'use client';
 
+import { Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@clerk/nextjs';
 import AuthButton from '@/components/AuthButton';
@@ -9,7 +10,7 @@ import GroceryCart from '@/components/GroceryCart';
 
 type Tab = 'list' | 'cart';
 
-export default function GroceryPage() {
+function GroceryPageContent() {
   const { isSignedIn, isLoaded } = useAuth();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -69,5 +70,13 @@ export default function GroceryPage() {
         )}
       </div>
     </main>
+  );
+}
+
+export default function GroceryPage() {
+  return (
+    <Suspense>
+      <GroceryPageContent />
+    </Suspense>
   );
 }

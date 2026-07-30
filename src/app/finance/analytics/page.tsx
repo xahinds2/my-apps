@@ -107,9 +107,9 @@ function KpiCard({ label, value, sub, accent, trend }: {
 // ─── Stacked Monthly Bars ─────────────────────────────────────────────────────
 
 function StackedMonthlyChart({ plan }: { plan: BudgetPlan }) {
+  const [hovered, setHovered] = useState<number | null>(null);
   const active = activeMonths(plan);
   if (active.length === 0) return null;
-  const [hovered, setHovered] = useState<number | null>(null);
   const sortedCats = [...plan.categories].sort((a, b) => a.order - b.order);
   const W = 560, H = 220;
   const PAD = { t: 16, r: 16, b: 32, l: 48 };
@@ -534,9 +534,9 @@ function MonthlyTable({ plan }: { plan: BudgetPlan }) {
 // ─── Year Comparison ──────────────────────────────────────────────────────────
 
 function YearComparison({ plans }: { plans: BudgetPlan[] }) {
+  const [hovered, setHovered] = useState<string | null>(null);
   if (plans.length < 2) return null;
   const [p1, p2] = [...plans].sort((a, b) => a.year - b.year);
-  const [hovered, setHovered] = useState<string | null>(null);
 
   const totalIncome = (p: BudgetPlan) =>
     activeMonths(p).filter(mi => (p.incomes[mi] ?? 0) > 0).reduce((s, mi) => s + (p.incomes[mi] ?? 0), 0);

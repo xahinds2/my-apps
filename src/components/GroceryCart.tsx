@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Plus, Minus, ChevronDown, ChevronUp, ShoppingCart, Check, Trash2, SlidersHorizontal } from 'lucide-react';
 import ProductMappingModal, { type MappingCandidate, type MappingEntry } from '@/components/ProductMappingModal';
 
-interface GroceryItem { _id: string; name: string; unit: string; defaultQuantity: number; category: string; }
 interface CartSessionItem { itemId: string; itemName: string; quantity: number; addedAt: string; }
 interface CartSession {
   _id: string; name: string;
@@ -17,9 +16,6 @@ interface PriceEntry {
   price: number; unit: string; productName: string; productUrl?: string; imageUrl?: string; scrapedAt: string;
 }
 
-const STORE_LABEL: Record<string, string> = { zepto: 'Zepto', instamart: 'Swiggy' };
-const STORE_COLOR = { zepto: 'text-purple-600', instamart: 'text-orange-500' };
-const STORE_BG = { zepto: 'bg-purple-50 dark:bg-purple-950/30 border-purple-200 dark:border-purple-800', instamart: 'bg-orange-50 dark:bg-orange-950/30 border-orange-200 dark:border-orange-800' };
 const STORE_FAVICON = { zepto: 'https://www.google.com/s2/favicons?domain=zepto.com&sz=16', instamart: 'https://www.google.com/s2/favicons?domain=swiggy.com&sz=16' };
 
 function priceAge(scrapedAt: string): string {
