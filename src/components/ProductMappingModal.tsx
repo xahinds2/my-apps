@@ -122,7 +122,7 @@ export default function ProductMappingModal({ item, candidates, mappings, loadin
                               <div className="font-medium text-neutral-900 dark:text-white truncate">{c.productName}</div>
                             )}
                             <div className="text-xs text-neutral-400 mt-0.5">
-                              ₹{c.price.toFixed(0)}{c.unit ? ` · ${c.unit}` : ''} · {priceAge(c.scrapedAt)}
+                              {c.price != null ? `₹${c.price.toFixed(0)}` : 'No price'}{c.unit ? ` · ${c.unit}` : ''} · {priceAge(c.scrapedAt)}
                             </div>
                           </div>
                           {isConfirmed ? (

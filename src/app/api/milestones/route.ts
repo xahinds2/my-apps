@@ -44,7 +44,7 @@ export async function POST(req: Request) {
     await UserMilestones.findOneAndUpdate(
       { userId },
       { $set: { milestones } },
-      { upsert: true, new: true }
+      { upsert: true, returnDocument: 'after' }
     );
 
     return NextResponse.json({ ok: true });

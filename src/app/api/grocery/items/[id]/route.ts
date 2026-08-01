@@ -22,7 +22,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const db = await connectToDatabase();
     if (!db) return NextResponse.json({ error: 'Database unavailable' }, { status: 503 });
 
-    const item = await GroceryItem.findOneAndUpdate({ _id: id, userId }, { $set: update }, { new: true });
+    const item = await GroceryItem.findOneAndUpdate({ _id: id, userId }, { $set: update }, { returnDocument: 'after' });
     if (!item) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
     return NextResponse.json({ data: item });

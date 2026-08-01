@@ -13,7 +13,7 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
     const db = await connectToDatabase();
     if (!db) return NextResponse.json({ error: 'Database unavailable' }, { status: 503 });
 
-    const entry = await StorePriceEntry.findOneAndDelete({ _id: id, userId });
+    const entry = await StorePriceEntry.findOneAndDelete({ _id: id });
     if (!entry) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
     return NextResponse.json({ data: { deleted: true } });

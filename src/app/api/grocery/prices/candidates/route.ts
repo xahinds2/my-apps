@@ -3,6 +3,7 @@ import { connectToDatabase } from '@/lib/db';
 import { getAuthUser } from '@/lib/authHelper';
 import StorePriceEntry from '@/features/grocery/models/StorePriceEntry';
 import ProductMapping from '@/features/grocery/models/ProductMapping';
+import GroceryItem from '@/features/grocery/models/GroceryItem';
 import mongoose from 'mongoose';
 
 // GET /api/grocery/prices/candidates?itemId=X[&q=search]
@@ -22,12 +23,19 @@ export async function GET(req: Request) {
     if (!db) return NextResponse.json({ error: 'Database unavailable' }, { status: 503 });
 
     const objItemId = new mongoose.Types.ObjectId(itemId);
+
+    // When no explicit query, fall back to the grocery item's name
+    let searchTerm = q;
+    if (!searchTerm) {
+      const item = await GroceryItem.findById(objItemId).lean();
+      if (!item) return NextResponse.json({ error: 'Item not found' }, { status: 404 });
+      searchTerm = item.name;
+    }
+
     const [entries, mappings] = await Promise.all([
-      q
-        ? StorePriceEntry.find({ userId, productName: { $regex: q, $options: 'i' } })
-            .sort({ store: 1, scrapedAt: -1 })
-            .lean()
-        : StorePriceEntry.find({ userId, itemId: objItemId }).sort({ store: 1 }).lean(),
+      StorePriceEntry.find({ productName: { $regex: searchTerm, $options: 'i' } })
+        .sort({ store: 1, scrapedAt: -1 })
+        .lean(),
       ProductMapping.find({ userId, itemId: objItemId }).lean(),
     ]);
 

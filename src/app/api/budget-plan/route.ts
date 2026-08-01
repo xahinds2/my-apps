@@ -93,7 +93,7 @@ export async function POST(req: Request) {
     const plan = await BudgetPlan.findOneAndUpdate(
       { userId, year },
       { $set: { categories: sanitizedCategories, incomes: sanitizedIncomes } },
-      { upsert: true, new: true }
+      { upsert: true, returnDocument: 'after' }
     );
 
     return NextResponse.json({ data: plan });

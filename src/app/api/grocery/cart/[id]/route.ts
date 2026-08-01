@@ -37,7 +37,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const db = await connectToDatabase();
     if (!db) return NextResponse.json({ error: 'Database unavailable' }, { status: 503 });
 
-    const session = await CartSession.findOneAndUpdate({ _id: id, userId }, { $set: update }, { new: true });
+    const session = await CartSession.findOneAndUpdate({ _id: id, userId }, { $set: update }, { returnDocument: 'after' });
     if (!session) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
     return NextResponse.json({ data: session });

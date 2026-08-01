@@ -89,7 +89,7 @@ export async function POST(req: Request) {
     const share = await AppShare.findOneAndUpdate(
       { owner: userId, appname },
       updateOps,
-      { upsert: true, new: true, setDefaultsOnInsert: true }
+      { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
     ).lean();
 
     return NextResponse.json({ data: share });

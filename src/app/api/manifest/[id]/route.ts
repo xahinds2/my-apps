@@ -125,7 +125,7 @@ export async function PATCH(
     const manifestItem = await ManifestItem.findOneAndUpdate(
       { _id: id, userId },
       { $set: update },
-      { new: true }
+      { returnDocument: 'after' }
     );
 
     if (!manifestItem) {

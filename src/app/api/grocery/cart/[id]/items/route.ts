@@ -57,7 +57,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     const session = await CartSession.findOneAndUpdate(
       { _id: id, userId },
       { $pull: { items: { itemId: new mongoose.Types.ObjectId(itemId) } } },
-      { new: true }
+      { returnDocument: 'after' }
     );
     if (!session) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 

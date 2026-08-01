@@ -45,7 +45,7 @@ export async function POST(req: Request) {
     await UserInsurance.findOneAndUpdate(
       { userId },
       { $set: { policies } },
-      { upsert: true, new: true }
+      { upsert: true, returnDocument: 'after' }
     );
 
     return NextResponse.json({ ok: true });

@@ -131,7 +131,7 @@ export async function PATCH(
         ...(Object.keys(updateSet).length > 0 ? { $set: updateSet } : {}),
         ...(Object.keys(updateUnset).length > 0 ? { $unset: updateUnset } : {}),
       },
-      { new: true }
+      { returnDocument: 'after' }
     ).lean();
 
     if (!updated) {

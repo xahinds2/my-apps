@@ -4,6 +4,7 @@ import { getAuthUser } from '@/lib/authHelper';
 import ProductMapping from '@/features/grocery/models/ProductMapping';
 import StorePriceEntry from '@/features/grocery/models/StorePriceEntry';
 import { STORES } from '@/features/grocery/models/StorePriceEntry';
+import GroceryItem from '@/features/grocery/models/GroceryItem';
 import mongoose from 'mongoose';
 
 // GET /api/grocery/mapping?itemId=X   — single item
@@ -53,16 +54,18 @@ export async function POST(req: Request) {
     if (!db) return NextResponse.json({ error: 'Database unavailable' }, { status: 503 });
 
     const objItemId = new mongoose.Types.ObjectId(itemId);
-    const entryFilter = confirmedProductName
-      ? { userId, itemId: objItemId, store, productName: confirmedProductName }
-      : { userId, itemId: objItemId, store };
-    const entry = await StorePriceEntry.findOne(entryFilter).lean();
+    if (!confirmedProductName) return NextResponse.json({ error: 'productName required' }, { status: 400 });
+
+    const entry = await StorePriceEntry.findOne({ store, productName: confirmedProductName }).lean();
     if (!entry) return NextResponse.json({ error: 'No scraped price found for this item+store' }, { status: 404 });
+
+    const groceryItem = await GroceryItem.findById(objItemId).lean();
+    const itemName = groceryItem?.name ?? confirmedProductName;
 
     const mapping = await ProductMapping.findOneAndUpdate(
       { userId, itemId: objItemId, store, productName: entry.productName },
-      { $set: { itemName: entry.itemName, productName: entry.productName, productUrl: entry.productUrl } },
-      { upsert: true, new: true }
+      { $set: { itemName, productName: entry.productName, productUrl: entry.productUrl } },
+      { upsert: true, returnDocument: 'after' }
     );
 
     return NextResponse.json({ data: mapping });
