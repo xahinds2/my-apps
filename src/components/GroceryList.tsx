@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Plus, Trash2, Pencil, X, SlidersHorizontal } from 'lucide-react';
 import ProductMappingModal from '@/components/ProductMappingModal';
+import GroceryImportExport from '@/components/GroceryImportExport';
 import { CATEGORIES, type GroceryCategory } from '@/features/grocery/types';
 
 interface GroceryItem {
@@ -367,12 +368,15 @@ export default function GroceryList() {
       {/* Add item button / form */}
       {/* Add item trigger / form */}
       {!showForm ? (
-        <button
-          onClick={() => setShowForm(true)}
-          className="w-full flex items-center gap-2 py-3.5 px-4 mb-6 rounded-xl border border-dashed border-neutral-300 dark:border-neutral-700 text-neutral-500 dark:text-neutral-400 hover:border-emerald-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors text-sm font-medium"
-        >
-          <Plus size={15} /> Add grocery item
-        </button>
+        <div className="flex gap-2 mb-6">
+          <button
+            onClick={() => setShowForm(true)}
+            className="flex-1 flex items-center gap-2 py-3.5 px-4 rounded-xl border border-dashed border-neutral-300 dark:border-neutral-700 text-neutral-500 dark:text-neutral-400 hover:border-emerald-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors text-sm font-medium"
+          >
+            <Plus size={15} /> Add grocery item
+          </button>
+          <GroceryImportExport items={items} onApply={next => setItems(next)} />
+        </div>
       ) : (
         <div className="mb-6 p-4 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900">
           <div className="flex gap-2 mb-2">
