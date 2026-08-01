@@ -1,6 +1,8 @@
 const STORES = [
-  { id: 'zepto',     name: 'Zepto',     patterns: ['zepto.com/search', 'zepto.com/cn/', 'zepto.com/c/'] },
-  { id: 'instamart', name: 'Instamart', patterns: ['instamart.in/search', 'instamart.in/c/', 'instamart.in/collection/', 'swiggy.com/instamart/search', 'swiggy.com/instamart/c/', 'swiggy.com/instamart/collection/'] },
+  { id: 'zepto',            name: 'Zepto',    patterns: ['zepto.com/search', 'zepto.com/cn/', 'zepto.com/c/'] },
+  { id: 'instamart',        name: 'Swiggy',   patterns: ['instamart.in/search', 'instamart.in/c/', 'instamart.in/collection/', 'swiggy.com/instamart/search', 'swiggy.com/instamart/c/', 'swiggy.com/instamart/collection/'] },
+  { id: 'flipkart_minutes', name: 'Flipkart', patterns: ['flipkart.com/search', 'flipkart.com/grocery/', 'flipkart.com/supermart/'] },
+  { id: 'amazon_fresh',     name: 'Amazon',   patterns: ['amazon.in/s?', 'amazon.in/gp/browse', 'amazon.in/stores/'] },
 ];
 
 function detectStore(url) {
@@ -33,7 +35,7 @@ async function init() {
     statusText.innerHTML = `Active on <span>${currentStore.name}</span> — prices scraped on page load`;
   } else {
     dot.className = 'status-dot inactive';
-    statusText.textContent = 'Not a supported store — visit Zepto or Instamart search';
+    statusText.textContent = `Not a supported store — visit ${STORES.map(s => s.name).join(', ')} search`;
   }
 
   // Store pills

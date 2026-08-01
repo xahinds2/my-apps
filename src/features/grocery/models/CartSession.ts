@@ -10,7 +10,7 @@ export interface ICartSessionItem {
 export interface ICartSession extends Document {
   userId: string;
   name: string;
-  cartType: 'main' | 'zepto' | 'instamart' | null;
+  cartType: 'main' | 'zepto' | 'instamart' | 'flipkart_minutes' | 'amazon_fresh' | null;
   status: 'active' | 'completed';
   items: ICartSessionItem[];
   createdAt: Date;
@@ -31,7 +31,7 @@ const CartSessionSchema: Schema = new Schema(
   {
     userId: { type: String, required: true },
     name: { type: String, required: true, trim: true, maxlength: 100 },
-    cartType: { type: String, enum: ['main', 'zepto', 'instamart', null], default: null },
+    cartType: { type: String, enum: ['main', 'zepto', 'instamart', 'flipkart_minutes', 'amazon_fresh', null], default: null },
     status: { type: String, enum: ['active', 'completed'], default: 'active' },
     items: { type: [CartSessionItemSchema], default: [] },
   },

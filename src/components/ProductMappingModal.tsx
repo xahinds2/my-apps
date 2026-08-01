@@ -1,11 +1,12 @@
 'use client';
 
 import { X, Plus, Minus } from 'lucide-react';
+import { STORES, type GroceryStore } from '@/features/grocery/types';
 
 export interface MappingCandidate {
   _id: string;
   itemId: string;
-  store: 'zepto' | 'instamart';
+  store: GroceryStore;
   productName: string;
   productUrl?: string;
   imageUrl?: string;
@@ -18,10 +19,17 @@ export interface MappingCandidate {
 export interface MappingEntry {
   _id: string;
   itemId: string;
-  store: 'zepto' | 'instamart';
+  store: GroceryStore;
   productName: string;
   productUrl?: string;
 }
+
+const STORE_META: Record<GroceryStore, { label: string; favicon: string; color: string }> = {
+  zepto:            { label: 'Zepto',    favicon: 'zepto.com',    color: 'text-purple-500' },
+  instamart:        { label: 'Instamart', favicon: 'swiggy.com',  color: 'text-orange-500' },
+  flipkart_minutes: { label: 'Flipkart', favicon: 'flipkart.com', color: 'text-blue-500' },
+  amazon_fresh:     { label: 'Amazon',   favicon: 'amazon.in',    color: 'text-yellow-600' },
+};
 
 interface Props {
   item: { itemId: string; itemName: string } | null;
@@ -29,7 +37,7 @@ interface Props {
   mappings: MappingEntry[];
   loading: boolean;
   onClose: () => void;
-  onConfirm: (itemId: string, store: 'zepto' | 'instamart', productName: string) => void;
+  onConfirm: (itemId: string, store: GroceryStore, productName: string) => void;
   onRemove: (mapping: MappingEntry) => void;
 }
 
@@ -66,19 +74,20 @@ export default function ProductMappingModal({ item, candidates, mappings, loadin
               No scraped prices yet. Use the extension on Zepto or Instamart first.
             </p>
           ) : (
-            (['zepto', 'instamart'] as const).map(store => {
+            (STORES).map(store => {
               const storeCandidates = candidates.filter(c => c.store === store);
               if (storeCandidates.length === 0) return null;
+              const meta = STORE_META[store];
               const hasConfirmed = mappings.some(m => m.store === store);
               return (
                 <div key={store} className="mb-5 last:mb-0">
                   <div className="flex items-center gap-2 mb-2">
                     <img
-                      src={`https://www.google.com/s2/favicons?domain=${store === 'zepto' ? 'zepto.com' : 'swiggy.com'}&sz=16`}
+                      src={`https://www.google.com/s2/favicons?domain=${meta.favicon}&sz=16`}
                       width={14} height={14} alt={store} className="rounded-sm"
                     />
-                    <span className={`text-xs font-semibold uppercase tracking-wide ${store === 'zepto' ? 'text-purple-500' : 'text-orange-500'}`}>
-                      {store === 'zepto' ? 'Zepto' : 'Instamart'}
+                    <span className={`text-xs font-semibold uppercase tracking-wide ${meta.color}`}>
+                      {meta.label}
                     </span>
                     {hasConfirmed && (
                       <span className="ml-auto text-xs text-emerald-600 dark:text-emerald-400 font-medium">✓ mapped</span>

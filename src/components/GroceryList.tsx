@@ -14,7 +14,7 @@ interface GroceryItem {
 interface PriceEntry {
   _id: string;
   itemId: string;
-  store: 'zepto' | 'instamart';
+  store: 'zepto' | 'instamart' | 'flipkart_minutes' | 'amazon_fresh';
   price: number;
   unit: string;
   productName: string;
@@ -27,7 +27,7 @@ interface PriceEntry {
 interface ProductMapping {
   _id: string;
   itemId: string;
-  store: 'zepto' | 'instamart';
+  store: 'zepto' | 'instamart' | 'flipkart_minutes' | 'amazon_fresh';
   productName: string;
 }
 
@@ -310,7 +310,7 @@ export default function GroceryList() {
     document.body.style.overflow = '';
   }
 
-  async function confirmMapping(itemId: string, store: 'zepto' | 'instamart', productName: string) {
+  async function confirmMapping(itemId: string, store: 'zepto' | 'instamart' | 'flipkart_minutes' | 'amazon_fresh', productName: string) {
     const res = await fetch('/api/grocery/mapping', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

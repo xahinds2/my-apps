@@ -5,18 +5,36 @@ import { Plus, Minus, ChevronDown, ChevronUp, ShoppingCart, Check, Trash2, Slide
 import ProductMappingModal, { type MappingCandidate, type MappingEntry } from '@/components/ProductMappingModal';
 
 interface CartSessionItem { itemId: string; itemName: string; quantity: number; addedAt: string; }
+type GroceryStore = 'zepto' | 'instamart' | 'flipkart_minutes' | 'amazon_fresh';
 interface CartSession {
   _id: string; name: string;
-  cartType: 'main' | 'zepto' | 'instamart' | null;
+  cartType: 'main' | GroceryStore | null;
   status: 'active' | 'completed';
   items: CartSessionItem[]; createdAt: string;
 }
 interface PriceEntry {
-  _id: string; itemId: string; store: 'zepto' | 'instamart';
+  _id: string; itemId: string; store: GroceryStore;
   price: number; unit: string; productName: string; productUrl?: string; imageUrl?: string; scrapedAt: string;
 }
 
-const STORE_FAVICON = { zepto: 'https://www.google.com/s2/favicons?domain=zepto.com&sz=16', instamart: 'https://www.google.com/s2/favicons?domain=swiggy.com&sz=16' };
+const STORE_FAVICON: Record<GroceryStore, string> = {
+  zepto: 'https://www.google.com/s2/favicons?domain=zepto.com&sz=16',
+  instamart: 'https://www.google.com/s2/favicons?domain=swiggy.com&sz=16',
+  flipkart_minutes: 'https://www.google.com/s2/favicons?domain=flipkart.com&sz=16',
+  amazon_fresh: 'https://www.google.com/s2/favicons?domain=amazon.in&sz=16',
+};
+const STORE_LABEL: Record<GroceryStore, string> = {
+  zepto: 'Zepto',
+  instamart: 'Swiggy',
+  flipkart_minutes: 'Flipkart',
+  amazon_fresh: 'Amazon',
+};
+const STORE_SEARCH_URL: Record<GroceryStore, (q: string) => string> = {
+  zepto: q => `https://www.zepto.com/search?query=${q}`,
+  instamart: q => `https://www.swiggy.com/instamart/search?query=${q}`,
+  flipkart_minutes: q => `https://www.flipkart.com/search?q=${q}&marketplace=HYPERLOCAL`,
+  amazon_fresh: q => `https://www.amazon.in/s?k=${q}&i=nowstore`,
+};
 
 function priceAge(scrapedAt: string): string {
   const days = Math.floor((Date.now() - new Date(scrapedAt).getTime()) / 86400000);
@@ -35,7 +53,7 @@ interface CartPanelProps {
   onUpdate: (s: CartSession) => void;
   onDelete: (id: string) => void;
   /** Called when user confirms sending an item to a store cart */
-  onSendToStore?: (item: CartSessionItem, store: 'zepto' | 'instamart') => void;
+  onSendToStore?: (item: CartSessionItem, store: GroceryStore) => void;
 }
 
 function CartPanel({ session, isMain, onUpdate, onDelete, onSendToStore }: CartPanelProps) {
@@ -83,21 +101,21 @@ function CartPanel({ session, isMain, onUpdate, onDelete, onSendToStore }: CartP
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session._id, itemsKey]);
 
-  function getPriceForItem(itemId: string, store: 'zepto' | 'instamart'): PriceEntry | undefined {
+  function getPriceForItem(itemId: string, store: GroceryStore): PriceEntry | undefined {
     const m = allMappings.find(m => String(m.itemId) === itemId && m.store === store);
     if (!m) return undefined;
     return prices.find(p => p.itemId === itemId && p.store === store && p.productName === m.productName);
   }
 
   // Falls back to the cheapest scraped price when no mapping exists yet
-  function getBestPriceForItem(itemId: string, store: 'zepto' | 'instamart'): PriceEntry | undefined {
+  function getBestPriceForItem(itemId: string, store: GroceryStore): PriceEntry | undefined {
     const mapped = getPriceForItem(itemId, store);
     if (mapped) return mapped;
     const candidates = prices.filter(p => p.itemId === itemId && p.store === store);
     return candidates.length ? candidates.reduce((min, p) => p.price < min.price ? p : min) : undefined;
   }
 
-  function storeTotal(store: 'zepto' | 'instamart'): { total: number; partial: boolean } | null {
+  function storeTotal(store: GroceryStore): { total: number; partial: boolean } | null {
     if (!session.items.length) return null;
     let total = 0, partial = false;
     for (const it of session.items) {
@@ -158,7 +176,7 @@ function CartPanel({ session, isMain, onUpdate, onDelete, onSendToStore }: CartP
   }
   function closeMappingModal() { setMappingItem(null); setCandidates([]); setModalMappings([]); document.body.style.overflow = ''; }
 
-  async function confirmMapping(itemId: string, store: 'zepto' | 'instamart', productName: string) {
+  async function confirmMapping(itemId: string, store: GroceryStore, productName: string) {
     const res = await fetch('/api/grocery/mapping', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ itemId, store, productName }) });
     const json = await res.json();
     if (json.data) {
@@ -179,14 +197,28 @@ function CartPanel({ session, isMain, onUpdate, onDelete, onSendToStore }: CartP
 
   const zeptoTotal = storeTotal('zepto');
   const instamartTotal = storeTotal('instamart');
-  const cheapestStore: 'zepto' | 'instamart' | null =
-    zeptoTotal && instamartTotal && !zeptoTotal.partial && !instamartTotal.partial
-      ? zeptoTotal.total <= instamartTotal.total ? 'zepto' : 'instamart' : null;
+  const flipkartTotal = storeTotal('flipkart_minutes');
+  const amazonTotal = storeTotal('amazon_fresh');
+  const allStoreTotals: { key: GroceryStore; val: { total: number; partial: boolean } | null }[] = [
+    { key: 'zepto', val: zeptoTotal },
+    { key: 'instamart', val: instamartTotal },
+    { key: 'flipkart_minutes', val: flipkartTotal },
+    { key: 'amazon_fresh', val: amazonTotal },
+  ];
+  const completeTotals = allStoreTotals.filter(t => t.val && !t.val.partial);
+  const cheapestStore: GroceryStore | null = completeTotals.length > 1
+    ? completeTotals.reduce((min, t) => t.val!.total < min.val!.total ? t : min).key
+    : null;
   const isActive = session.status === 'active';
-  const headerTotal = cheapestStore === 'zepto' ? zeptoTotal : cheapestStore === 'instamart' ? instamartTotal : zeptoTotal ?? instamartTotal;
+  const headerTotal = cheapestStore
+    ? allStoreTotals.find(t => t.key === cheapestStore)?.val
+    : allStoreTotals.find(t => t.val)?.val;
 
   // Store cart: only show the relevant store column
-  const storeCartType = session.cartType === 'zepto' ? 'zepto' : session.cartType === 'instamart' ? 'instamart' : null;
+  const STORE_KEYS: GroceryStore[] = ['zepto', 'instamart', 'flipkart_minutes', 'amazon_fresh'];
+  const storeCartType: GroceryStore | null = STORE_KEYS.includes(session.cartType as GroceryStore)
+    ? session.cartType as GroceryStore
+    : null;
 
   const borderClass = isMain
     ? 'border-neutral-200 dark:border-neutral-700'
@@ -312,6 +344,16 @@ function CartPanel({ session, isMain, onUpdate, onDelete, onSendToStore }: CartP
                             <img src={STORE_FAVICON.instamart} width={12} height={12} alt="" className="rounded-sm" /> Swiggy
                           </span>
                         </th>
+                        <th className="text-right px-3 py-3 text-xs font-semibold">
+                          <span className="flex items-center justify-end gap-1 text-neutral-500 dark:text-neutral-400">
+                            <img src={STORE_FAVICON.flipkart_minutes} width={12} height={12} alt="" className="rounded-sm" /> Flipkart
+                          </span>
+                        </th>
+                        <th className="text-right px-3 py-3 text-xs font-semibold">
+                          <span className="flex items-center justify-end gap-1 text-neutral-500 dark:text-neutral-400">
+                            <img src={STORE_FAVICON.amazon_fresh} width={12} height={12} alt="" className="rounded-sm" /> Amazon
+                          </span>
+                        </th>
                       </>
                     )}
                     <th className="w-8 rounded-tr-xl" />
@@ -321,7 +363,20 @@ function CartPanel({ session, isMain, onUpdate, onDelete, onSendToStore }: CartP
                   {session.items.map(item => {
                     const zp = getBestPriceForItem(item.itemId, 'zepto');
                     const ip = getBestPriceForItem(item.itemId, 'instamart');
-                    const cheaper = zp && ip ? (zp.price * item.quantity <= ip.price * item.quantity ? 'zepto' : 'instamart') : null;
+                    const fp = getBestPriceForItem(item.itemId, 'flipkart_minutes');
+                    const ap = getBestPriceForItem(item.itemId, 'amazon_fresh');
+                    const _all = [zp, ip, fp, ap].filter(Boolean) as PriceEntry[];
+                    const _minPrice = _all.length > 1 ? Math.min(..._all.map(p => p.price)) : null;
+                    const cheapestItemStore: GroceryStore | null = _minPrice !== null
+                      ? (['zepto', 'instamart', 'flipkart_minutes', 'amazon_fresh'] as GroceryStore[]).find(s => {
+                          const p = s === 'zepto' ? zp : s === 'instamart' ? ip : s === 'flipkart_minutes' ? fp : ap;
+                          return p?.price === _minPrice;
+                        }) ?? null
+                      : null;
+                    const _bestOtherZ = [ip, fp, ap].filter(Boolean).reduce<PriceEntry | null>((min, p) => !min || p!.price < min.price ? p! : min, null);
+                    const _bestOtherI = [zp, fp, ap].filter(Boolean).reduce<PriceEntry | null>((min, p) => !min || p!.price < min.price ? p! : min, null);
+                    const _bestOtherF = [zp, ip, ap].filter(Boolean).reduce<PriceEntry | null>((min, p) => !min || p!.price < min.price ? p! : min, null);
+                    const _bestOtherA = [zp, ip, fp].filter(Boolean).reduce<PriceEntry | null>((min, p) => !min || p!.price < min.price ? p! : min, null);
                     const sp = storeCartType ? getPriceForItem(item.itemId, storeCartType) : null;
                     return (
                       <tr key={item.itemId} className="group">
@@ -358,8 +413,8 @@ function CartPanel({ session, isMain, onUpdate, onDelete, onSendToStore }: CartP
                           // Store cart: single price column
                           <td className="px-3 py-3 text-right">
                             {(() => { const p = getBestPriceForItem(item.itemId, storeCartType);
-                              const otherStore = storeCartType === 'zepto' ? 'instamart' : 'zepto';
-                              const op = getBestPriceForItem(item.itemId, otherStore);
+                              const otherPrices = STORE_KEYS.filter(s => s !== storeCartType).map(s => getBestPriceForItem(item.itemId, s)).filter(Boolean) as PriceEntry[];
+                              const op = otherPrices.length ? otherPrices.reduce((min, x) => x.price < min.price ? x : min) : null;
                               const cheaper = op && p && p.price * item.quantity <= op.price * item.quantity;
                               return p ? (
                                 <button onClick={() => openMappingModal(item.itemId, item.itemName)} className="text-right hover:opacity-70 transition-opacity">
@@ -367,7 +422,7 @@ function CartPanel({ session, isMain, onUpdate, onDelete, onSendToStore }: CartP
                                   <div className={`text-xs ${cheaper && op ? 'text-emerald-500' : ageFreshness(p.scrapedAt)}`}>{cheaper && op ? `-₹${((op.price - p.price) * item.quantity).toFixed(0)}` : priceAge(p.scrapedAt)}</div>
                                 </button>
                               ) : (
-                                <a href={storeCartType === 'zepto' ? `https://www.zepto.com/search?query=${encodeURIComponent(item.itemName)}` : `https://www.swiggy.com/instamart/search?query=${encodeURIComponent(item.itemName)}`} target="_blank" rel="noopener noreferrer" className="inline-flex hover:scale-110 transition-transform">
+                                <a href={STORE_SEARCH_URL[storeCartType](encodeURIComponent(item.itemName))} target="_blank" rel="noopener noreferrer" className="inline-flex hover:scale-110 transition-transform">
                                   <img src={STORE_FAVICON[storeCartType]} width={13} height={13} alt="" className="rounded-sm" />
                                 </a>
                               );
@@ -381,7 +436,7 @@ function CartPanel({ session, isMain, onUpdate, onDelete, onSendToStore }: CartP
                                 <div className="relative group/price inline-block text-right">
                                   <button onClick={() => onSendToStore?.(item, 'zepto')} className="text-right hover:opacity-70 transition-opacity" title="Add to Zepto cart">
                                     <div className="font-semibold text-xs text-white">₹{(zp.price * item.quantity).toFixed(0)}</div>
-                                    <div className={`text-xs ${cheaper === 'zepto' && ip ? 'text-emerald-500' : ageFreshness(zp.scrapedAt)}`}>{cheaper === 'zepto' && ip ? `-₹${((ip.price - zp.price) * item.quantity).toFixed(0)}` : priceAge(zp.scrapedAt)}</div>
+                                    <div className={`text-xs ${cheapestItemStore === 'zepto' && _bestOtherZ ? 'text-emerald-500' : ageFreshness(zp.scrapedAt)}`}>{cheapestItemStore === 'zepto' && _bestOtherZ ? `-₹${((_bestOtherZ.price - zp.price) * item.quantity).toFixed(0)}` : priceAge(zp.scrapedAt)}</div>
                                   </button>
                                   <div className="pointer-events-none absolute bottom-full right-0 mb-1.5 hidden group-hover/price:flex z-20 items-center gap-2 bg-neutral-900 dark:bg-neutral-800 border border-neutral-700 rounded-lg px-2.5 py-2 shadow-xl w-max max-w-[220px] text-left">
                                     {zp.imageUrl && <img src={zp.imageUrl} alt="" className="w-8 h-8 rounded object-contain bg-neutral-800 shrink-0" />}
@@ -392,7 +447,7 @@ function CartPanel({ session, isMain, onUpdate, onDelete, onSendToStore }: CartP
                                   </div>
                                 </div>
                               ) : (
-                                <a href={`https://www.zepto.com/search?query=${encodeURIComponent(item.itemName)}`} target="_blank" rel="noopener noreferrer" className="inline-flex hover:scale-110 transition-transform">
+                                <a href={STORE_SEARCH_URL.zepto(encodeURIComponent(item.itemName))} target="_blank" rel="noopener noreferrer" className="inline-flex hover:scale-110 transition-transform">
                                   <img src={STORE_FAVICON.zepto} width={13} height={13} alt="Search Zepto" className="rounded-sm" />
                                 </a>
                               )}
@@ -402,7 +457,7 @@ function CartPanel({ session, isMain, onUpdate, onDelete, onSendToStore }: CartP
                                 <div className="relative group/price inline-block text-right">
                                   <button onClick={() => onSendToStore?.(item, 'instamart')} className="text-right hover:opacity-70 transition-opacity" title="Add to Swiggy cart">
                                     <div className="font-semibold text-xs text-white">₹{(ip.price * item.quantity).toFixed(0)}</div>
-                                    <div className={`text-xs ${cheaper === 'instamart' && zp ? 'text-emerald-500' : ageFreshness(ip.scrapedAt)}`}>{cheaper === 'instamart' && zp ? `-₹${((zp.price - ip.price) * item.quantity).toFixed(0)}` : priceAge(ip.scrapedAt)}</div>
+                                    <div className={`text-xs ${cheapestItemStore === 'instamart' && _bestOtherI ? 'text-emerald-500' : ageFreshness(ip.scrapedAt)}`}>{cheapestItemStore === 'instamart' && _bestOtherI ? `-₹${((_bestOtherI.price - ip.price) * item.quantity).toFixed(0)}` : priceAge(ip.scrapedAt)}</div>
                                   </button>
                                   <div className="pointer-events-none absolute bottom-full right-0 mb-1.5 hidden group-hover/price:flex z-20 items-center gap-2 bg-neutral-900 dark:bg-neutral-800 border border-neutral-700 rounded-lg px-2.5 py-2 shadow-xl w-max max-w-[220px] text-left">
                                     {ip.imageUrl && <img src={ip.imageUrl} alt="" className="w-8 h-8 rounded object-contain bg-neutral-800 shrink-0" />}
@@ -413,8 +468,50 @@ function CartPanel({ session, isMain, onUpdate, onDelete, onSendToStore }: CartP
                                   </div>
                                 </div>
                               ) : (
-                                <a href={`https://www.swiggy.com/instamart/search?query=${encodeURIComponent(item.itemName)}`} target="_blank" rel="noopener noreferrer" className="inline-flex hover:scale-110 transition-transform">
+                                <a href={STORE_SEARCH_URL.instamart(encodeURIComponent(item.itemName))} target="_blank" rel="noopener noreferrer" className="inline-flex hover:scale-110 transition-transform">
                                   <img src={STORE_FAVICON.instamart} width={13} height={13} alt="Search Swiggy" className="rounded-sm" />
+                                </a>
+                              )}
+                            </td>
+                            <td className="px-3 py-3 text-right">
+                              {fp ? (
+                                <div className="relative group/price inline-block text-right">
+                                  <button onClick={() => onSendToStore?.(item, 'flipkart_minutes')} className="text-right hover:opacity-70 transition-opacity" title="Add to Flipkart cart">
+                                    <div className="font-semibold text-xs text-white">₹{(fp.price * item.quantity).toFixed(0)}</div>
+                                    <div className={`text-xs ${cheapestItemStore === 'flipkart_minutes' && _bestOtherF ? 'text-emerald-500' : ageFreshness(fp.scrapedAt)}`}>{cheapestItemStore === 'flipkart_minutes' && _bestOtherF ? `-₹${((_bestOtherF.price - fp.price) * item.quantity).toFixed(0)}` : priceAge(fp.scrapedAt)}</div>
+                                  </button>
+                                  <div className="pointer-events-none absolute bottom-full right-0 mb-1.5 hidden group-hover/price:flex z-20 items-center gap-2 bg-neutral-900 dark:bg-neutral-800 border border-neutral-700 rounded-lg px-2.5 py-2 shadow-xl w-max max-w-[220px] text-left">
+                                    {fp.imageUrl && <img src={fp.imageUrl} alt="" className="w-8 h-8 rounded object-contain bg-neutral-800 shrink-0" />}
+                                    <div>
+                                      <div className="text-xs text-white font-medium leading-snug">{fp.productName}</div>
+                                      {fp.unit && <div className="text-xs text-neutral-400 mt-0.5">{fp.unit}</div>}
+                                    </div>
+                                  </div>
+                                </div>
+                              ) : (
+                                <a href={STORE_SEARCH_URL.flipkart_minutes(encodeURIComponent(item.itemName))} target="_blank" rel="noopener noreferrer" className="inline-flex hover:scale-110 transition-transform">
+                                  <img src={STORE_FAVICON.flipkart_minutes} width={13} height={13} alt="Search Flipkart" className="rounded-sm" />
+                                </a>
+                              )}
+                            </td>
+                            <td className="px-3 py-3 text-right">
+                              {ap ? (
+                                <div className="relative group/price inline-block text-right">
+                                  <button onClick={() => onSendToStore?.(item, 'amazon_fresh')} className="text-right hover:opacity-70 transition-opacity" title="Add to Amazon cart">
+                                    <div className="font-semibold text-xs text-white">₹{(ap.price * item.quantity).toFixed(0)}</div>
+                                    <div className={`text-xs ${cheapestItemStore === 'amazon_fresh' && _bestOtherA ? 'text-emerald-500' : ageFreshness(ap.scrapedAt)}`}>{cheapestItemStore === 'amazon_fresh' && _bestOtherA ? `-₹${((_bestOtherA.price - ap.price) * item.quantity).toFixed(0)}` : priceAge(ap.scrapedAt)}</div>
+                                  </button>
+                                  <div className="pointer-events-none absolute bottom-full right-0 mb-1.5 hidden group-hover/price:flex z-20 items-center gap-2 bg-neutral-900 dark:bg-neutral-800 border border-neutral-700 rounded-lg px-2.5 py-2 shadow-xl w-max max-w-[220px] text-left">
+                                    {ap.imageUrl && <img src={ap.imageUrl} alt="" className="w-8 h-8 rounded object-contain bg-neutral-800 shrink-0" />}
+                                    <div>
+                                      <div className="text-xs text-white font-medium leading-snug">{ap.productName}</div>
+                                      {ap.unit && <div className="text-xs text-neutral-400 mt-0.5">{ap.unit}</div>}
+                                    </div>
+                                  </div>
+                                </div>
+                              ) : (
+                                <a href={STORE_SEARCH_URL.amazon_fresh(encodeURIComponent(item.itemName))} target="_blank" rel="noopener noreferrer" className="inline-flex hover:scale-110 transition-transform">
+                                  <img src={STORE_FAVICON.amazon_fresh} width={13} height={13} alt="Search Amazon" className="rounded-sm" />
                                 </a>
                               )}
                             </td>
@@ -437,31 +534,27 @@ function CartPanel({ session, isMain, onUpdate, onDelete, onSendToStore }: CartP
                     );
                   })}
                 </tbody>
-                {/* Totals footer — only for main cart (two stores) */}
-                {!storeCartType && (zeptoTotal || instamartTotal) && (
+                {/* Totals footer — only for main cart */}
+                {!storeCartType && allStoreTotals.some(t => t.val) && (
                   <tfoot>
                     <tr className="bg-neutral-50 dark:bg-neutral-900/60 border-t border-neutral-100 dark:border-neutral-800">
                       <td className="px-3 py-3 text-xs font-semibold text-neutral-500 dark:text-neutral-400">Total</td>
-                      <td className="px-3 py-3 text-right">
-                        {zeptoTotal ? (
-                          <div>
-                            <span className="font-bold text-sm text-white">
-                              {zeptoTotal.partial && <span className="text-xs font-normal text-neutral-400 mr-0.5">~</span>}₹{zeptoTotal.total.toFixed(0)}
-                            </span>
-                            {cheapestStore === 'zepto' && instamartTotal && <div className="text-xs text-emerald-500 font-medium">-₹{(instamartTotal.total - zeptoTotal.total).toFixed(0)}</div>}
-                          </div>
-                        ) : <span className="text-xs text-neutral-400">—</span>}
-                      </td>
-                      <td className="px-3 py-3 text-right">
-                        {instamartTotal ? (
-                          <div>
-                            <span className="font-bold text-sm text-white">
-                              {instamartTotal.partial && <span className="text-xs font-normal text-neutral-400 mr-0.5">~</span>}₹{instamartTotal.total.toFixed(0)}
-                            </span>
-                            {cheapestStore === 'instamart' && zeptoTotal && <div className="text-xs text-emerald-500 font-medium">-₹{(zeptoTotal.total - instamartTotal.total).toFixed(0)}</div>}
-                          </div>
-                        ) : <span className="text-xs text-neutral-400">—</span>}
-                      </td>
+                      {allStoreTotals.map(({ key, val }) => (
+                        <td key={key} className="px-3 py-3 text-right">
+                          {val ? (
+                            <div>
+                              <span className="font-bold text-sm text-white">
+                                {val.partial && <span className="text-xs font-normal text-neutral-400 mr-0.5">~</span>}₹{val.total.toFixed(0)}
+                              </span>
+                              {cheapestStore === key && allStoreTotals.some(t => t.key !== key && t.val && !t.val.partial) && (
+                                <div className="text-xs text-emerald-500 font-medium">
+                                  -₹{(Math.min(...allStoreTotals.filter(t => t.key !== key && t.val && !t.val.partial).map(t => t.val!.total)) - val.total).toFixed(0)}
+                                </div>
+                              )}
+                            </div>
+                          ) : <span className="text-xs text-neutral-400">—</span>}
+                        </td>
+                      ))}
                       <td />
                     </tr>
                   </tfoot>
@@ -488,7 +581,7 @@ function CartPanel({ session, isMain, onUpdate, onDelete, onSendToStore }: CartP
 export default function GroceryCart() {
   const [sessions, setSessions] = useState<CartSession[]>([]);
   const [loading, setLoading] = useState(true);
-  const [creatingStore, setCreatingStore] = useState<'zepto' | 'instamart' | null>(null);
+  const [creatingStore, setCreatingStore] = useState<GroceryStore | null>(null);
 
   const upsertSession = useCallback((s: CartSession) => {
     setSessions(prev => {
@@ -516,7 +609,7 @@ export default function GroceryCart() {
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  async function ensureStoreCart(store: 'zepto' | 'instamart'): Promise<CartSession | null> {
+  async function ensureStoreCart(store: GroceryStore): Promise<CartSession | null> {
     setCreatingStore(store);
     try {
       const res = await fetch('/api/grocery/cart', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cartType: store }) });
@@ -526,7 +619,7 @@ export default function GroceryCart() {
     return null;
   }
 
-  async function handleSendToStore(item: CartSessionItem, store: 'zepto' | 'instamart') {
+  async function handleSendToStore(item: CartSessionItem, store: GroceryStore) {
     const storeCart = await ensureStoreCart(store);
     if (!storeCart) return;
     await fetch(`/api/grocery/cart/${storeCart._id}/items`, {
@@ -540,7 +633,7 @@ export default function GroceryCart() {
   }
 
   const mainCart = sessions.find(s => s.cartType === 'main');
-  const storeCarts = sessions.filter(s => s.cartType === 'zepto' || s.cartType === 'instamart');
+  const storeCarts = sessions.filter(s => s.cartType && s.cartType !== 'main' && s.cartType !== null);
   const completedCarts = sessions.filter(s => s.status === 'completed' && s.cartType !== 'main');
 
   if (loading) return <div className="text-center py-16 text-neutral-400 text-sm">Loading…</div>;
@@ -555,18 +648,14 @@ export default function GroceryCart() {
             : 'No store carts yet'}
         </span>
         <div className="flex items-center gap-2">
-          {!storeCarts.find(s => s.cartType === 'zepto' && s.status === 'active') && (
-            <button onClick={() => ensureStoreCart('zepto')} disabled={creatingStore === 'zepto'}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 text-xs font-semibold hover:bg-neutral-50 dark:hover:bg-neutral-800/60 disabled:opacity-50 transition-colors">
-              <img src={STORE_FAVICON.zepto} width={11} height={11} alt="" className="rounded-sm" /> + Zepto
-            </button>
-          )}
-          {!storeCarts.find(s => s.cartType === 'instamart' && s.status === 'active') && (
-            <button onClick={() => ensureStoreCart('instamart')} disabled={creatingStore === 'instamart'}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 text-xs font-semibold hover:bg-neutral-50 dark:hover:bg-neutral-800/60 disabled:opacity-50 transition-colors">
-              <img src={STORE_FAVICON.instamart} width={11} height={11} alt="" className="rounded-sm" /> + Swiggy
-            </button>
-          )}
+          {(['zepto', 'instamart', 'flipkart_minutes', 'amazon_fresh'] as GroceryStore[]).map(store => (
+            !storeCarts.find(s => s.cartType === store && s.status === 'active') && (
+              <button key={store} onClick={() => ensureStoreCart(store)} disabled={creatingStore === store}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 text-xs font-semibold hover:bg-neutral-50 dark:hover:bg-neutral-800/60 disabled:opacity-50 transition-colors">
+                <img src={STORE_FAVICON[store]} width={11} height={11} alt="" className="rounded-sm" /> + {STORE_LABEL[store]}
+              </button>
+            )
+          ))}
         </div>
       </div>
 

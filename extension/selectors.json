@@ -18,6 +18,25 @@
       "notes": "First span starting with a digit — e.g. '1 pack (500 ml)', '500 g'. Avoids review-count spans that were matched by last-span."
     }
   },
+  "flipkart_minutes": {
+    "hosts": ["flipkart.com"],
+    "card": "div:has(> a[href*='marketplace=HYPERLOCAL'][href*='/p/'])",
+    "name": {
+      "type": "structural",
+      "rule": "longest-alpha-leaf",
+      "notes": "Flipkart Minutes uses RNW-style class names. Product name is the longest alpha-starting text among all leaf elements."
+    },
+    "price": {
+      "type": "structural",
+      "rule": "last-rupee-text",
+      "notes": "First ₹ element is the strikethrough MRP; last ₹ element is the discounted sale price."
+    },
+    "unit": {
+      "type": "structural",
+      "rule": "first-unit-text",
+      "notes": "First leaf element matching a weight/volume pattern e.g. '1 L', '500 g'."
+    }
+  },
   "instamart": {
     "hosts": ["instamart.in", "swiggy.com"],
     "card": "div:has(> [data-testid=\"item-collection-card-full\"])",
@@ -35,6 +54,23 @@
       "type": "structural",
       "rule": "first-unit-text",
       "notes": "First element (< 30 chars) whose textContent matches a weight/volume pattern, e.g. '500 ml', '1 kg'."
-    }
-  }
+    }  },
+  "amazon_fresh": {
+    "hosts": ["amazon.in"],
+    "card": "[data-component-type=\"s-search-result\"]",
+    "name": {
+      "type": "selector",
+      "selectors": ["h2 span"],
+      "notes": "Amazon uses stable h2+span for the product title — no class-name hashing."
+    },
+    "price": {
+      "type": "selector",
+      "selectors": [".a-price-whole"],
+      "notes": "First .a-price-whole is the sale price as a plain integer (no \u20b9). parsePrice handles the conversion."
+    },
+    "unit": {
+      "type": "structural",
+      "rule": "first-unit-text",
+      "notes": "Unit is typically embedded in the product title (e.g. '1L', '500 g'). findUnitNear fallback extracts it from within the name span."
+    }  }
 }

@@ -24,7 +24,7 @@ export async function POST(req: Request) {
     const db = await connectToDatabase();
     if (!db) return NextResponse.json({ error: 'Database unavailable' }, { status: 503 });
 
-    const cartType: string | null = ['main', 'zepto', 'instamart'].includes(body?.cartType) ? body.cartType : null;
+    const cartType: string | null = ['main', 'zepto', 'instamart', 'flipkart_minutes', 'amazon_fresh'].includes(body?.cartType) ? body.cartType : null;
 
     // For typed carts: return existing active one if it exists (upsert-style)
     if (cartType) {
@@ -35,7 +35,8 @@ export async function POST(req: Request) {
     const today = new Date();
     const dateStr = today.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
     const timeStr = today.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
-    const defaultName = cartType === 'main' ? 'Main Cart' : cartType === 'zepto' ? 'Zepto' : cartType === 'instamart' ? 'Swiggy' : `Cart – ${dateStr}, ${timeStr}`;
+    const CART_NAMES: Record<string, string> = { main: 'Main Cart', zepto: 'Zepto', instamart: 'Swiggy', flipkart_minutes: 'Flipkart', amazon_fresh: 'Amazon' };
+    const defaultName = cartType ? (CART_NAMES[cartType] ?? `Cart – ${dateStr}, ${timeStr}`) : `Cart – ${dateStr}, ${timeStr}`;
     const name = typeof body?.name === 'string' && body.name.trim() ? body.name.trim().slice(0, 100) : defaultName;
 
     const session = await CartSession.create({ userId, name, cartType, items: [] });

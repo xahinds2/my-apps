@@ -40,27 +40,27 @@ export async function POST(req: Request) {
     const groceryItems = await GroceryItem.find({ userId }).lean();
 
     const upserts: Promise<unknown>[] = [];
-    const matched: string[] = [];
-    const unmatched: string[] = [];
 
     for (const product of products) {
       const scrapedName = typeof product.name === 'string' ? product.name.trim() : '';
-      if (!scrapedName || typeof product.price !== 'number' || product.price <= 0) continue;
+      if (!scrapedName) continue;
 
-      const groceryItem = groceryItems.find(item => fuzzyMatch(item.name, scrapedName));
-      if (!groceryItem) { unmatched.push(scrapedName); continue; }
-
-      matched.push(scrapedName);
+      const productName = product.productName || scrapedName;
       const unit = product.unit ?? '';
+      const price = typeof product.price === 'number' ? product.price : null;
+
+      // Try to link to a grocery item, but save regardless
+      const groceryItem = groceryItems.find(item => fuzzyMatch(item.name, scrapedName));
+
       upserts.push(
         StorePriceEntry.findOneAndUpdate(
-          { userId, itemId: new mongoose.Types.ObjectId(String(groceryItem._id)), store, unit },
+          { userId, store, productName, unit },
           {
             $set: {
-              itemName: groceryItem.name,
-              price: product.price,
+              ...(groceryItem ? { itemId: new mongoose.Types.ObjectId(String(groceryItem._id)), itemName: groceryItem.name } : {}),
+              price,
               unit,
-              productName: product.productName || scrapedName,
+              productName,
               productUrl: product.productUrl ?? undefined,
               imageUrl: product.imageUrl || undefined,
               scrapedAt: new Date(),
@@ -72,7 +72,7 @@ export async function POST(req: Request) {
     }
 
     await Promise.all(upserts);
-    return NextResponse.json({ matched: matched.length, saved: upserts.length, unmatched });
+    return NextResponse.json({ saved: upserts.length });
   } catch (err: unknown) {
     return NextResponse.json({ error: err instanceof Error ? err.message : 'Internal Server Error' }, { status: 500 });
   }

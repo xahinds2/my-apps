@@ -8,6 +8,8 @@
     "https://www.zepto.com/*",
     "https://instamart.in/*",
     "https://www.swiggy.com/*",
+    "https://www.flipkart.com/*",
+    "https://www.amazon.in/*",
     "http://localhost:3000/*",
     "https://*.vercel.app/*"
   ],
@@ -25,7 +27,10 @@
         "https://instamart.in/collection/*",
         "https://www.swiggy.com/instamart/search*",
         "https://www.swiggy.com/instamart/c/*",
-        "https://www.swiggy.com/instamart/collection/*"
+        "https://www.swiggy.com/instamart/collection/*",
+        "https://www.flipkart.com/search*",
+        "https://www.flipkart.com/flipkart-minutes-store*",
+        "https://www.amazon.in/s*"
       ],
       "js": ["scraper-utils.js", "store-selectors.js", "content-scraper.js"],
       "run_at": "document_idle"

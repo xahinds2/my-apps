@@ -56,6 +56,24 @@
         if (unitRe.test(t) && t.length < 30) return (t.match(unitRe) || [''])[0];
       }
     }
+    if (rule === 'last-rupee-text') {
+      let last = '';
+      for (const el of link.querySelectorAll('*')) {
+        if (el.children.length > 0) continue;
+        const t = el.textContent.trim();
+        if (/^₹[\d,]+(\.[\d]+)?$/.test(t)) last = t;
+      }
+      return last;
+    }
+    if (rule === 'longest-alpha-leaf') {
+      let best = '';
+      for (const el of link.querySelectorAll('*')) {
+        if (el.children.length > 0) continue;
+        const t = el.textContent.trim();
+        if (/^[A-Za-z]/.test(t) && t.length > best.length) best = t;
+      }
+      return best;
+    }
     return '';
   }
 
@@ -83,10 +101,11 @@
     let dropped = 0;
 
     for (const link of links) {
-      const href = link.href || '';
+      // Non-anchor cards (e.g. Flipkart Minutes wraps <a> in a parent div) — find the inner link.
+      const href = link.href || link.querySelector?.('a[href]')?.href || '';
       const rawName = extractField(link, S.name);
       const name = rawName.replace(/^Sponsored\s*/i, '').trim();
-      if (!name || name.length < 3) continue;
+      if (!name) continue;
 
       const dedupKey = href || name;
       if (seen.has(dedupKey)) continue;
@@ -98,7 +117,6 @@
       const unit = rawUnit || U.findUnitNear(link);
 
       const product = { name, price, unit, productName: name, productUrl: href ? href.split('?')[0] : window.location.href, imageUrl: extractImage(link), store: storeKey };
-      if (U.scoreProduct(product) < 4) { dropped++; continue; }
       products.push(product);
     }
 
