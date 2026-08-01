@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { ListChecks, X } from 'lucide-react';
 import { CATEGORIES, type GroceryCategory } from '@/features/grocery/types';
 
@@ -64,6 +64,36 @@ export default function GroceryQuickEdit({ items, onApply }: Props) {
     setSaving(false);
   }
 
+  // position:fixed is the only reliable cross-browser scroll lock (incl. iOS Safari)
+  useEffect(() => {
+    if (!open) return;
+    const scrollY = window.scrollY;
+    document.body.style.position = 'fixed';
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.width = '100%';
+    return () => {
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.width = '';
+      window.scrollTo(0, scrollY);
+    };
+  }, [open]);
+
+  // position:fixed is the only reliable cross-browser scroll lock (incl. iOS Safari)
+  useEffect(() => {
+    if (!open) return;
+    const scrollY = window.scrollY;
+    document.body.style.position = 'fixed';
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.width = '100%';
+    return () => {
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.width = '';
+      window.scrollTo(0, scrollY);
+    };
+  }, [open]);
+
   const newRows = useMemo(() => parseLines(pasteText), [pasteText]);
 
   const toRemove = items.filter(i => !kept[i._id]);
@@ -125,8 +155,8 @@ export default function GroceryQuickEdit({ items, onApply }: Props) {
                   autoFocus
                   value={pasteText}
                   onChange={e => setPasteText(e.target.value)}
-                  placeholder={'Tomato\nMilk:dairy\nRice:grains'}
-                  rows={4}
+                  placeholder={'Tomato:vegetables\nApple:fruits\nMilk:dairy\nRice:grains\nChips:snacks\nCoffee:beverages\nDetergent:household\nShampoo:personal_care\nToothpicks:other'}
+                  rows={9}
                   className="w-full px-3 py-2.5 text-sm rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white outline-none focus:border-emerald-500 resize-none font-mono placeholder:font-sans placeholder:text-neutral-400 dark:placeholder:text-neutral-600"
                 />
                 {/* Live-parsed new rows */}
