@@ -79,7 +79,15 @@
 
   function extractField(card, fieldConfig) {
     if (!fieldConfig) return '';
-    if (fieldConfig.type === 'structural') return structuralExtract(card, fieldConfig.rule);
+    if (fieldConfig.type === 'structural') {
+      const result = structuralExtract(card, fieldConfig.rule);
+      if (result) return result;
+      for (const sel of fieldConfig.css_fallback || []) {
+        const el = card.querySelector(sel);
+        if (el) { const t = U.normalizeWhitespace(el.textContent || el.getAttribute('alt') || ''); if (t) return t; }
+      }
+      return '';
+    }
     if (fieldConfig.type === 'selector') return U.pickText(card, fieldConfig.selectors) || '';
     return '';
   }

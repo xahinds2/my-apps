@@ -5,7 +5,8 @@
     "name": {
       "type": "structural",
       "rule": "first-alpha-span",
-      "notes": "Zepto uses hashed class names. Name is the first span whose text starts with a letter."
+      "css_fallback": ["img[alt]"],
+      "notes": "Zepto uses hashed class names. Name is the first span whose text starts with a letter. Fallback to img alt for brands starting with digits (e.g. 24 Mantra)."
     },
     "price": {
       "type": "structural",
@@ -60,8 +61,8 @@
     "card": "[data-component-type=\"s-search-result\"]",
     "name": {
       "type": "selector",
-      "selectors": ["h2 span"],
-      "notes": "Amazon uses stable h2+span for the product title — no class-name hashing."
+      "selectors": ["a.a-link-normal h2 span", "h2.a-size-base-plus span", "h2 span"],
+      "notes": "First h2 span is the brand name; full title lives in the anchor-wrapped h2. Original h2 span kept as fallback."
     },
     "price": {
       "type": "selector",

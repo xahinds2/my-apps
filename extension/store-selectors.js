@@ -7,7 +7,7 @@ window.STORE_SELECTORS = {
     hosts: ['zepto.com'],
     // Zepto hashes class names on every build — structural span-order extraction is used instead.
     card: 'a[href*="/pn/"]',
-    name:  { type: 'structural', rule: 'first-alpha-span' },
+    name:  { type: 'structural', rule: 'first-alpha-span', css_fallback: ['img[alt]'] },
     price: { type: 'structural', rule: 'first-rupee-span' },
     unit:  { type: 'structural', rule: 'first-digit-span' },
   },
@@ -33,7 +33,7 @@ window.STORE_SELECTORS = {
     hosts: ['amazon.in'],
     // Amazon Fresh / Now store — URL pattern: amazon.in/s?...i=nowstore...
     card: '[data-component-type="s-search-result"]',
-    name:  { type: 'selector', selectors: ['h2 span'] },
+    name:  { type: 'selector', selectors: ['a.a-link-normal h2 span', 'h2.a-size-base-plus span', 'h2 span'] },
     // First .a-price-whole is the sale price as a plain integer (no ₹); parsePrice handles it.
     price: { type: 'selector', selectors: ['.a-price-whole'] },
     // Unit is often embedded in the title (e.g. '1L', '500 g'); findUnitNear fallback extracts it.
