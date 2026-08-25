@@ -99,8 +99,8 @@ function ChatPage() {
   const [messagesLoading, setMessagesLoading] = useState(true);
   const [error, setError] = useState('');
   const [linkCopied, setLinkCopied] = useState(false);
-  const [tokenCopied, setTokenCopied] = useState(false);
   const [peerStatus, setPeerStatus] = useState<{ online: boolean; lastActiveAt: string | null } | null>(null);
+  const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
   const [pendingAttachments, setPendingAttachments] = useState<Attachment[]>([]);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -327,6 +327,8 @@ function ChatPage() {
   useEffect(() => {
     if (view.type !== 'dm') { setPeerStatus(null); return; }
     const peer = view.peer;
+    // Clear stale data immediately before fetching for new peer
+    setPeerStatus(null);
     function fetchStatus() {
       fetch(`/api/chat/username?status=${encodeURIComponent(peer)}`)
         .then(r => r.ok ? r.json() : null)
@@ -533,6 +535,22 @@ function ChatPage() {
   const viewLabel = view.type === 'channel' ? view.id : view.peer;
   const ViewIcon = view.type === 'channel' ? Hash : AtSign;
 
+  // Batch poll online status for all DM peers (must be after mergedDms)
+  useEffect(() => {
+    if (mergedDms.length === 0) { setOnlineUsers(new Set()); return; }
+    function fetchOnline() {
+      const names = mergedDms.map(d => d.peer).join(',');
+      fetch(`/api/chat/username?online=${encodeURIComponent(names)}`)
+        .then(r => r.ok ? r.json() : { online: [] })
+        .then(d => setOnlineUsers(new Set(d.online ?? [])))
+        .catch(() => null);
+    }
+    fetchOnline();
+    const id = setInterval(fetchOnline, 30_000);
+    return () => clearInterval(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mergedDms.length]);
+
   return (
     <div className="fixed inset-0 flex flex-col md:flex-row bg-[var(--background)] text-[var(--foreground)]">
       {/* Mobile full-page nav — hidden on md+ */}
@@ -554,6 +572,7 @@ function ChatPage() {
             onSelectChannel={id => { setView({ type: 'channel', id }); setMobileNavOpen(false); setChannelSearch(''); setChannelMode(null); }}
             onSelectDm={startDm}
             onCreateChannel={createChannel}
+            onlineUsers={onlineUsers}
           />
         </div>
       )}
@@ -577,8 +596,8 @@ function ChatPage() {
           onSelectChannel={id => { setView({ type: 'channel', id }); setChannelSearch(''); setChannelMode(null); }}
           onSelectDm={startDm}
           onCreateChannel={createChannel}
+          onlineUsers={onlineUsers}
         />
-        {/* Username identity footer */}
         {username && (
           <div className="px-3 py-2.5 border-t border-neutral-200 dark:border-neutral-800 flex items-center gap-2 shrink-0">
             <div className="w-6 h-6 rounded-full bg-neutral-200 dark:bg-neutral-800 flex items-center justify-center shrink-0">
@@ -591,13 +610,13 @@ function ChatPage() {
 
       {/* Chat panel */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-      <header className="flex items-center gap-2 px-4 py-3 border-b border-neutral-200 dark:border-neutral-800 shrink-0">
+      <header className="flex items-center gap-3 px-6 py-3 border-b border-neutral-200 dark:border-neutral-800 shrink-0">
         {/* Back button — mobile only */}
         <button onClick={() => { setMobileNavOpen(true); window.history.pushState(null, '', '/chat'); }} className="md:hidden flex items-center justify-center w-7 h-7 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors cursor-pointer shrink-0">
           <ArrowLeft size={15} className="text-neutral-400" />
         </button>
-        {/* Current view label */}
-        <div className="md:hidden relative flex flex-col justify-center px-2 py-0.5">
+        {/* Mobile view label */}
+        <div className="md:hidden flex flex-col justify-center">
           <div className="flex items-center gap-1.5">
             <ViewIcon size={15} className="text-neutral-400" />
             <span className="font-semibold tracking-tight text-sm">{viewLabel}</span>
@@ -612,21 +631,20 @@ function ChatPage() {
             </span>
           )}
         </div>
-
-        <span className="ml-auto" />
-        {/* Desktop view label */}
-        <div className="hidden md:flex flex-col items-center absolute left-1/2 -translate-x-1/2">
-          <div className="flex items-center gap-1.5">
-            <ViewIcon size={14} className="text-neutral-400" />
+        {/* Desktop view label — left-aligned, no absolute positioning */}
+        <div className="hidden md:flex flex-col justify-center">
+          <div className="flex items-center gap-2">
+            <ViewIcon size={15} className="text-neutral-400" />
             <span className="font-semibold text-sm">{viewLabel}</span>
           </div>
           {peerStatus && (
-            <span className="text-[10px] flex items-center gap-1">
+            <span className="text-[10px] flex items-center gap-1 mt-0.5">
               <span className={`w-1.5 h-1.5 rounded-full ${peerStatus.online ? 'bg-green-500' : 'bg-neutral-400'}`} />
               {peerStatus.online ? 'Online' : peerStatus.lastActiveAt ? `Last seen ${relativeTime(peerStatus.lastActiveAt)}` : 'Offline'}
             </span>
           )}
         </div>
+        <span className="flex-1" />
         {/* Settings — mobile only; desktop uses sidebar */}
         <button onClick={() => setSettingsOpen(true)} className="md:hidden flex items-center justify-center w-7 h-7 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors cursor-pointer" title="Settings">
           <Settings size={15} className="text-neutral-400" />
@@ -698,22 +716,6 @@ function ChatPage() {
                   {linkCopied ? 'Copied!' : 'Copy link'}
                 </button>
               </div>
-              <div className="space-y-2">
-                <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400">Restore Code</p>
-                <p className="text-xs text-neutral-400">Copy this code to restore your identity on any other instance or new device.</p>
-                <button
-                  onClick={() => {
-                    const t = localStorage.getItem('chat_device_token') ?? '';
-                    navigator.clipboard.writeText(t).catch(() => null);
-                    setTokenCopied(true);
-                    setTimeout(() => setTokenCopied(false), 2000);
-                  }}
-                  className="w-full flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-medium border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors cursor-pointer"
-                >
-                  <Link size={14} className="text-neutral-400" />
-                  {tokenCopied ? 'Copied!' : 'Copy restore code'}
-                </button>
-              </div>
               <div className="space-y-1">
                 <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400">About</p>
                 <p className="text-xs text-neutral-400 leading-relaxed">Fully anonymous. No account, no tracking. Channel messages are public. DMs are private between two usernames.</p>
@@ -758,7 +760,8 @@ function ChatPage() {
         )}
         <input ref={imageInputRef} type="file" accept="image/*" multiple hidden onChange={e => { handleFileSelect(e.target.files); e.target.value = ''; }} />
         <input ref={fileInputRef} type="file" accept="image/*,.pdf,.txt,.doc,.docx,.xls,.xlsx,.zip" multiple hidden onChange={e => { handleFileSelect(e.target.files); e.target.value = ''; }} />
-        <form onSubmit={handleSend} className="flex items-center gap-2 px-4 py-2.5">
+        <div className="max-w-3xl mx-auto w-full">
+        <form onSubmit={handleSend} className="flex items-center gap-2 px-4 md:px-6 py-2.5">
           <div ref={optionsRef} className="relative">
             <button type="button" onClick={() => setOptionsOpen(o => !o)} className="flex items-center justify-center size-10 rounded-full border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors cursor-pointer">
               <Plus size={18} className="text-neutral-500" />
@@ -800,6 +803,7 @@ function ChatPage() {
             <Send size={16} />
           </button>
         </form>
+        </div>
       </footer>
       </div>
     </div>

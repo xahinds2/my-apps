@@ -2,14 +2,23 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db';
 import RegisteredUsername from '@/features/chat/models/RegisteredUsername';
 
-// Search by prefix, get status, or restore username from device token
+// Search by prefix, get status, batch online check, or restore username from device token
 export async function GET(req: NextRequest) {
   const q = req.nextUrl.searchParams.get('q')?.trim().slice(0, 32) ?? '';
   const statusFor = req.nextUrl.searchParams.get('status')?.trim().slice(0, 32) ?? '';
   const device = req.nextUrl.searchParams.get('device')?.trim().slice(0, 64) ?? '';
+  const onlineCheck = req.nextUrl.searchParams.get('online') ?? '';
 
   const db = await connectToDatabase();
   if (!db) return NextResponse.json({ error: 'Database unavailable' }, { status: 503 });
+
+  // Batch online check: ?online=user1,user2,user3
+  if (onlineCheck) {
+    const names = onlineCheck.split(',').map(s => s.trim().slice(0, 32)).filter(Boolean).slice(0, 20);
+    const cutoff = new Date(Date.now() - 6 * 60 * 1000);
+    const active = await RegisteredUsername.find({ username: { $in: names }, lastActiveAt: { $gte: cutoff } }).select('username').lean() as { username: string }[];
+    return NextResponse.json({ online: active.map(u => u.username) });
+  }
 
   if (device) {
     const user = await RegisteredUsername.findOne({ deviceToken: device }).select('username lastActiveAt').lean() as { username: string; lastActiveAt?: Date } | null;

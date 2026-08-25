@@ -36,6 +36,7 @@ interface ChatNavContentProps {
   onSelectChannel: (id: string) => void;
   onSelectDm: (peer: string) => void;
   onCreateChannel: (e: FormEvent) => void;
+  onlineUsers?: Set<string>;
 }
 
 export default function ChatNavContent({
@@ -49,6 +50,7 @@ export default function ChatNavContent({
   onSelectChannel,
   onSelectDm,
   onCreateChannel,
+  onlineUsers = new Set(),
 }: ChatNavContentProps) {
   const px = compact ? 'px-3' : 'px-4';
   const itemPy = compact ? 'py-2' : 'py-3';
@@ -100,23 +102,8 @@ export default function ChatNavContent({
         </div>
       )}
 
-      {channels
-        .filter(id => !channelState.search || id.includes(channelState.search.toLowerCase()))
-        .map(id => (
-          <button
-            key={id}
-            onClick={() => onSelectChannel(id)}
-            className={`w-full flex items-center gap-2.5 ${px} ${itemPy} hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors text-left cursor-pointer`}
-          >
-            <Hash size={iconSize} className="text-neutral-400 shrink-0" />
-            <span className={`${textSize} flex-1 truncate`}>{id}</span>
-            {view.type === 'channel' && view.id === id && <Check size={compact ? 12 : 14} className="text-neutral-400" />}
-          </button>
-        ))
-      }
-
       {channelState.mode === 'add' && (
-        <div className={`${px} py-2 border-t border-neutral-100 dark:border-neutral-900`}>
+        <div className={`${px} pb-2`}>
           <form onSubmit={onCreateChannel} className="flex gap-1.5">
             <input
               autoFocus
@@ -137,6 +124,21 @@ export default function ChatNavContent({
           {channelState.error && <p className="text-xs text-red-500 mt-1">{channelState.error}</p>}
         </div>
       )}
+
+      {channels
+        .filter(id => !channelState.search || id.includes(channelState.search.toLowerCase()))
+        .map(id => (
+          <button
+            key={id}
+            onClick={() => onSelectChannel(id)}
+            className={`w-full flex items-center gap-2.5 ${px} ${itemPy} hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors text-left cursor-pointer`}
+          >
+            <Hash size={iconSize} className="text-neutral-400 shrink-0" />
+            <span className={`${textSize} flex-1 truncate`}>{id}</span>
+            {view.type === 'channel' && view.id === id && <Check size={compact ? 12 : 14} className="text-neutral-400" />}
+          </button>
+        ))
+      }
 
       {/* DMs */}
       <div className="border-t border-neutral-100 dark:border-neutral-900 mt-1" />
@@ -184,7 +186,8 @@ export default function ChatNavContent({
             >
               <AtSign size={iconSize} className="text-neutral-400 shrink-0" />
               <span className={`${textSize} flex-1 truncate`}>{peer}</span>
-              {isUnread && <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />}
+              {onlineUsers.has(peer) && <span className="w-2 h-2 rounded-full bg-green-500 shrink-0" />}
+              {!onlineUsers.has(peer) && isUnread && <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />}
               {!isUnread && view.type === 'dm' && view.peer === peer && <Check size={compact ? 12 : 14} className="text-neutral-400" />}
             </button>
           );

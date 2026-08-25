@@ -83,7 +83,8 @@ export default function ChatMessageList({ messages, username, view, onStartDm, b
   }, [view]);
 
   return (
-    <div ref={containerRef} className="flex-1 overflow-y-auto px-4 py-4">
+    <div ref={containerRef} className="flex-1 overflow-y-auto">
+      <div className="max-w-3xl mx-auto px-4 md:px-8 py-4">
       {!isLoading && messages.length === 0 && (
         <p className="text-center text-sm text-neutral-400 mt-16">
           {view.type === 'dm' ? `Start a conversation with ${view.peer}.` : 'No messages yet. Say something.'}
@@ -142,6 +143,7 @@ export default function ChatMessageList({ messages, username, view, onStartDm, b
             </div>
           );
         })}
+      </div>
       </div>
       <div ref={bottomRef} />
 
