@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db';
 import { getAuthUser } from '@/lib/authHelper';
 import CartSession from '@/features/grocery/models/CartSession';
+import GroceryItem from '@/features/grocery/models/GroceryItem';
 
 export async function GET() {
   try {
@@ -10,6 +11,17 @@ export async function GET() {
     if (!db) return NextResponse.json({ error: 'Database unavailable' }, { status: 503 });
 
     const sessions = await CartSession.find({ userId }).sort({ createdAt: 1 }).lean();
+
+    // Resolve current item names from GroceryItem so renames are reflected immediately
+    const itemIds = [...new Set(sessions.flatMap(s => s.items.map(i => i.itemId.toString())))];
+    if (itemIds.length > 0) {
+      const groceryItems = await GroceryItem.find({ _id: { $in: itemIds } }, { name: 1 }).lean();
+      const nameMap = new Map(groceryItems.map(i => [i._id.toString(), i.name]));
+      for (const s of sessions)
+        for (const item of s.items)
+          item.itemName = nameMap.get(item.itemId.toString()) ?? item.itemName;
+    }
+
     return NextResponse.json({ data: sessions });
   } catch (err: unknown) {
     return NextResponse.json({ error: err instanceof Error ? err.message : 'Internal Server Error' }, { status: 500 });

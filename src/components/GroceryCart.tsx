@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Plus, Minus, ChevronDown, ChevronUp, ShoppingCart, Check, Trash2, SlidersHorizontal } from 'lucide-react';
+import { Plus, Minus, ChevronDown, ChevronUp, ShoppingCart, Check, Trash2, SlidersHorizontal, Pencil } from 'lucide-react';
 import ProductMappingModal, { type MappingCandidate, type MappingEntry } from '@/components/ProductMappingModal';
 
 interface CartSessionItem { itemId: string; itemName: string; quantity: number; addedAt: string; }
@@ -52,11 +52,12 @@ interface CartPanelProps {
   isMain?: boolean;
   onUpdate: (s: CartSession) => void;
   onDelete: (id: string) => void;
-  /** Called when user confirms sending an item to a store cart */
   onSendToStore?: (item: CartSessionItem, store: GroceryStore) => void;
+  storeItemMap?: Map<string, GroceryStore[]>;
+  visibleStores?: Set<GroceryStore>;
 }
 
-function CartPanel({ session, isMain, onUpdate, onDelete, onSendToStore }: CartPanelProps) {
+function CartPanel({ session, isMain, onUpdate, onDelete, onSendToStore, storeItemMap, visibleStores }: CartPanelProps) {
   const [prices, setPrices] = useState<PriceEntry[]>([]);
   const [allMappings, setAllMappings] = useState<MappingEntry[]>([]);
   const [itemImages, setItemImages] = useState<Map<string, string>>(new Map());
@@ -71,10 +72,14 @@ function CartPanel({ session, isMain, onUpdate, onDelete, onSendToStore }: CartP
   const [candidates, setCandidates] = useState<MappingCandidate[]>([]);
   const [modalMappings, setModalMappings] = useState<MappingEntry[]>([]);
   const [mappingLoading, setMappingLoading] = useState(false);
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [editingItemName, setEditingItemName] = useState('');
 
   const pendingQty = useRef<Map<string, number>>(new Map());
   const flushTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sessionIdRef = useRef(session._id);
+  // suppresses the onBlur save when Escape is pressed
+  const cancelEditRef = useRef(false);
   useEffect(() => { sessionIdRef.current = session._id; }, [session._id]);
   // flush on unmount
   useEffect(() => () => { if (flushTimer.current) { clearTimeout(flushTimer.current); flushQty(); } }, []);
@@ -102,9 +107,12 @@ function CartPanel({ session, isMain, onUpdate, onDelete, onSendToStore }: CartP
   }, [session._id, itemsKey]);
 
   function getPriceForItem(itemId: string, store: GroceryStore): PriceEntry | undefined {
-    const m = allMappings.find(m => String(m.itemId) === itemId && m.store === store);
-    if (!m) return undefined;
-    return prices.find(p => p.itemId === itemId && p.store === store && p.productName === m.productName);
+    const storeMappings = allMappings.filter(m => String(m.itemId) === itemId && m.store === store);
+    if (storeMappings.length === 0) return undefined;
+    const candidates = storeMappings
+      .map(m => prices.find(p => p.itemId === itemId && p.store === store && p.productName === m.productName && (!m.unit || (p.unit ?? '') === m.unit)))
+      .filter((p): p is PriceEntry => p !== undefined);
+    return candidates.length ? candidates.reduce((min, p) => p.price < min.price ? p : min) : undefined;
   }
 
   function getBestPriceForItem(itemId: string, store: GroceryStore): PriceEntry | undefined {
@@ -150,6 +158,23 @@ function CartPanel({ session, isMain, onUpdate, onDelete, onSendToStore }: CartP
     updateQuantity(itemId, 0);
   }
 
+  async function renameItem(itemId: string, newName: string) {
+    if (cancelEditRef.current) { cancelEditRef.current = false; return; }
+    setEditingItemId(null);
+    const trimmed = newName.trim();
+    if (!trimmed) return;
+    const original = session.items.find(i => i.itemId === itemId)?.itemName ?? '';
+    if (trimmed === original) return;
+    const res = await fetch(`/api/grocery/items/${itemId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: trimmed }),
+    });
+    const json = await res.json();
+    if (json.data)
+      onUpdate({ ...session, items: session.items.map(i => i.itemId === itemId ? { ...i, itemName: json.data.name } : i) });
+  }
+
   function clearCart() {
     for (const it of session.items) pendingQty.current.set(it.itemId, 0);
     onUpdate({ ...session, items: [] });
@@ -172,13 +197,13 @@ function CartPanel({ session, isMain, onUpdate, onDelete, onSendToStore }: CartP
   }
   function closeMappingModal() { setMappingItem(null); setCandidates([]); setModalMappings([]); document.body.style.overflow = ''; }
 
-  async function confirmMapping(itemId: string, store: GroceryStore, productName: string) {
-    const res = await fetch('/api/grocery/mapping', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ itemId, store, productName }) });
+  async function confirmMapping(itemId: string, store: GroceryStore, productName: string, unit: string) {
+    const res = await fetch('/api/grocery/mapping', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ itemId, store, productName, unit }) });
     const json = await res.json();
     if (json.data) {
-      setModalMappings(prev => [...prev.filter(m => !(String(m.itemId) === itemId && m.store === store && m.productName === productName)), json.data]);
-      setCandidates(prev => prev.map(c => c.store === store && c.productName === productName ? { ...c, confirmed: true } : c));
-      setAllMappings(prev => [...prev.filter(m => !(String(m.itemId) === itemId && m.store === store && m.productName === productName)), json.data]);
+      setModalMappings(prev => [...prev.filter(m => !(String(m.itemId) === itemId && m.store === store && m.productName === productName && (m.unit ?? '') === unit)), json.data]);
+      setCandidates(prev => prev.map(c => c.store === store && c.productName === productName && (c.unit ?? '') === unit ? { ...c, confirmed: true } : c));
+      setAllMappings(prev => [...prev.filter(m => !(String(m.itemId) === itemId && m.store === store && m.productName === productName && (m.unit ?? '') === unit)), json.data]);
     }
   }
   async function removeMapping(mapping: MappingEntry) {
@@ -191,16 +216,11 @@ function CartPanel({ session, isMain, onUpdate, onDelete, onSendToStore }: CartP
     }
   }
 
-  const zeptoTotal = storeTotal('zepto');
-  const instamartTotal = storeTotal('instamart');
-  const flipkartTotal = storeTotal('flipkart_minutes');
-  const amazonTotal = storeTotal('amazon_fresh');
-  const allStoreTotals: { key: GroceryStore; val: { total: number; partial: boolean } | null }[] = [
-    { key: 'zepto', val: zeptoTotal },
-    { key: 'instamart', val: instamartTotal },
-    { key: 'flipkart_minutes', val: flipkartTotal },
-    { key: 'amazon_fresh', val: amazonTotal },
-  ];
+  // Store cart: only show the relevant store column
+  const ALL_STORES: GroceryStore[] = ['zepto', 'instamart', 'flipkart_minutes', 'amazon_fresh'];
+  const STORE_KEYS: GroceryStore[] = visibleStores ? ALL_STORES.filter(s => visibleStores.has(s)) : ALL_STORES;
+
+  const allStoreTotals: { key: GroceryStore; val: { total: number; partial: boolean } | null }[] = STORE_KEYS.map(s => ({ key: s, val: storeTotal(s) }));
   const completeTotals = allStoreTotals.filter(t => t.val && !t.val.partial);
   const cheapestStore: GroceryStore | null = completeTotals.length > 1
     ? completeTotals.reduce((min, t) => t.val!.total < min.val!.total ? t : min).key
@@ -209,10 +229,7 @@ function CartPanel({ session, isMain, onUpdate, onDelete, onSendToStore }: CartP
   const headerTotal = cheapestStore
     ? allStoreTotals.find(t => t.key === cheapestStore)?.val
     : allStoreTotals.find(t => t.val)?.val;
-
-  // Store cart: only show the relevant store column
-  const STORE_KEYS: GroceryStore[] = ['zepto', 'instamart', 'flipkart_minutes', 'amazon_fresh'];
-  const storeCartType: GroceryStore | null = STORE_KEYS.includes(session.cartType as GroceryStore)
+  const storeCartType: GroceryStore | null = ALL_STORES.includes(session.cartType as GroceryStore)
     ? session.cartType as GroceryStore
     : null;
 
@@ -330,26 +347,13 @@ function CartPanel({ session, isMain, onUpdate, onDelete, onSendToStore }: CartP
                       </th>
                     ) : (
                       <>
-                        <th className="text-right px-3 py-3 text-xs font-semibold">
-                          <span className="flex items-center justify-end gap-1 text-neutral-500 dark:text-neutral-400">
-                            <img src={STORE_FAVICON.zepto} width={12} height={12} alt="" className="rounded-sm" /> Zepto
-                          </span>
-                        </th>
-                        <th className="text-right px-3 py-3 text-xs font-semibold">
-                          <span className="flex items-center justify-end gap-1 text-neutral-500 dark:text-neutral-400">
-                            <img src={STORE_FAVICON.instamart} width={12} height={12} alt="" className="rounded-sm" /> Swiggy
-                          </span>
-                        </th>
-                        <th className="text-right px-3 py-3 text-xs font-semibold">
-                          <span className="flex items-center justify-end gap-1 text-neutral-500 dark:text-neutral-400">
-                            <img src={STORE_FAVICON.flipkart_minutes} width={12} height={12} alt="" className="rounded-sm" /> Flipkart
-                          </span>
-                        </th>
-                        <th className="text-right px-3 py-3 text-xs font-semibold">
-                          <span className="flex items-center justify-end gap-1 text-neutral-500 dark:text-neutral-400">
-                            <img src={STORE_FAVICON.amazon_fresh} width={12} height={12} alt="" className="rounded-sm" /> Amazon
-                          </span>
-                        </th>
+                        {STORE_KEYS.map(store => (
+                          <th key={store} className="text-right px-3 py-3 text-xs font-semibold">
+                            <span className="flex items-center justify-end gap-1 text-neutral-500 dark:text-neutral-400">
+                              <img src={STORE_FAVICON[store]} width={12} height={12} alt="" className="rounded-sm" /> {STORE_LABEL[store]}
+                            </span>
+                          </th>
+                        ))}
                       </>
                     )}
                     <th className="w-8 rounded-tr-xl" />
@@ -357,22 +361,12 @@ function CartPanel({ session, isMain, onUpdate, onDelete, onSendToStore }: CartP
                 </thead>
                 <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
                   {session.items.map(item => {
-                    const zp = getBestPriceForItem(item.itemId, 'zepto');
-                    const ip = getBestPriceForItem(item.itemId, 'instamart');
-                    const fp = getBestPriceForItem(item.itemId, 'flipkart_minutes');
-                    const ap = getBestPriceForItem(item.itemId, 'amazon_fresh');
-                    const _all = [zp, ip, fp, ap].filter(Boolean) as PriceEntry[];
+                    const storePrices = Object.fromEntries(STORE_KEYS.map(s => [s, getBestPriceForItem(item.itemId, s)])) as Record<GroceryStore, PriceEntry | undefined>;
+                    const _all = Object.values(storePrices).filter(Boolean) as PriceEntry[];
                     const _minPrice = _all.length > 1 ? Math.min(..._all.map(p => p.price)) : null;
                     const cheapestItemStore: GroceryStore | null = _minPrice !== null
-                      ? (['zepto', 'instamart', 'flipkart_minutes', 'amazon_fresh'] as GroceryStore[]).find(s => {
-                          const p = s === 'zepto' ? zp : s === 'instamart' ? ip : s === 'flipkart_minutes' ? fp : ap;
-                          return p?.price === _minPrice;
-                        }) ?? null
+                      ? STORE_KEYS.find(s => storePrices[s]?.price === _minPrice) ?? null
                       : null;
-                    const _bestOtherZ = [ip, fp, ap].filter(Boolean).reduce<PriceEntry | null>((min, p) => !min || p!.price < min.price ? p! : min, null);
-                    const _bestOtherI = [zp, fp, ap].filter(Boolean).reduce<PriceEntry | null>((min, p) => !min || p!.price < min.price ? p! : min, null);
-                    const _bestOtherF = [zp, ip, ap].filter(Boolean).reduce<PriceEntry | null>((min, p) => !min || p!.price < min.price ? p! : min, null);
-                    const _bestOtherA = [zp, ip, fp].filter(Boolean).reduce<PriceEntry | null>((min, p) => !min || p!.price < min.price ? p! : min, null);
                     const sp = storeCartType ? getPriceForItem(item.itemId, storeCartType) : null;
                     return (
                       <tr key={item.itemId} className="group">
@@ -388,11 +382,45 @@ function CartPanel({ session, isMain, onUpdate, onDelete, onSendToStore }: CartP
                               return url ? <a href={url} target="_blank" rel="noopener noreferrer" className="shrink-0">{imgEl}</a> : imgEl;
                             })()}
                             <div>
-                              {(() => { const url = sp?.productUrl || prices.find(p => p.itemId === item.itemId && p.productUrl)?.productUrl; return url ? (
-                                <a href={url} target="_blank" rel="noopener noreferrer" className="font-medium text-neutral-900 dark:text-white text-[13px] leading-snug hover:underline">{sp ? sp.productName : item.itemName}</a>
-                              ) : (
-                                <div className="font-medium text-neutral-900 dark:text-white text-[13px] leading-snug">{sp ? sp.productName : item.itemName}</div>
-                              ); })()}
+                              {editingItemId === item.itemId ? (
+                                <input
+                                  autoFocus
+                                  value={editingItemName}
+                                  onChange={e => setEditingItemName(e.target.value)}
+                                  onBlur={() => renameItem(item.itemId, editingItemName)}
+                                  onKeyDown={e => {
+                                    if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                                    if (e.key === 'Escape') { cancelEditRef.current = true; setEditingItemId(null); }
+                                  }}
+                                  onClick={e => e.stopPropagation()}
+                                  className="text-[13px] font-medium bg-transparent border-b border-neutral-400 dark:border-neutral-500 outline-none text-neutral-900 dark:text-white w-32"
+                                />
+                              ) : (() => {
+                                const url = sp?.productUrl || prices.find(p => p.itemId === item.itemId && p.productUrl)?.productUrl;
+                                const displayName = sp ? sp.productName : item.itemName;
+                                const nameNode = (
+                                  <span className="flex items-center gap-1 group/name">
+                                    {url
+                                      ? <a href={url} target="_blank" rel="noopener noreferrer" className="font-medium text-neutral-900 dark:text-white text-[13px] leading-snug hover:underline">{displayName}</a>
+                                      : <span className="font-medium text-neutral-900 dark:text-white text-[13px] leading-snug">{displayName}</span>
+                                    }
+                                    <button
+                                      onClick={() => { setEditingItemId(item.itemId); setEditingItemName(item.itemName); }}
+                                      className="opacity-0 group-hover/name:opacity-100 transition-opacity text-neutral-300 dark:text-neutral-600 hover:text-blue-500"
+                                    >
+                                      <Pencil size={10} />
+                                    </button>
+                                  </span>
+                                );
+                                return nameNode;
+                              })()}
+                              {(() => { const stores = storeItemMap?.get(item.itemId); return stores?.length ? (
+                                <div className="flex items-center gap-1 mt-1">
+                                  {stores.map(store => (
+                                    <img key={store} src={STORE_FAVICON[store]} width={10} height={10} alt={STORE_LABEL[store]} title={`In ${STORE_LABEL[store]} cart`} className="rounded-sm opacity-60" />
+                                  ))}
+                                </div>
+                              ) : null; })()}
                               {isActive ? (
                                 <div className="flex items-center gap-1.5 mt-1">
                                   <button onClick={() => updateQuantity(item.itemId, item.quantity - 1)} className="w-5 h-5 flex items-center justify-center rounded border border-neutral-200 dark:border-neutral-700 text-neutral-400 hover:text-red-500 transition-colors"><Minus size={10} /></button>
@@ -425,92 +453,38 @@ function CartPanel({ session, isMain, onUpdate, onDelete, onSendToStore }: CartP
                             })()}
                           </td>
                         ) : (
-                          // Main cart: click price to directly send to store cart
+                          // Main cart: dynamic store columns
                           <>
-                            <td className="px-3 py-3 text-right">
-                              {zp ? (
-                                <div className="relative group/price inline-block text-right">
-                                  <button onClick={() => onSendToStore?.(item, 'zepto')} className="text-right hover:opacity-70 transition-opacity" title="Add to Zepto cart">
-                                    <div className="font-semibold text-xs text-white">₹{(zp.price * item.quantity).toFixed(0)}</div>
-                                    <div className={`text-xs ${cheapestItemStore === 'zepto' && _bestOtherZ ? 'text-emerald-500' : ageFreshness(zp.scrapedAt)}`}>{cheapestItemStore === 'zepto' && _bestOtherZ ? `-₹${((_bestOtherZ.price - zp.price) * item.quantity).toFixed(0)}` : priceAge(zp.scrapedAt)}</div>
-                                  </button>
-                                  <div className="pointer-events-none absolute bottom-full right-0 mb-1.5 hidden group-hover/price:flex z-20 items-center gap-2 bg-neutral-900 dark:bg-neutral-800 border border-neutral-700 rounded-lg px-2.5 py-2 shadow-xl w-max max-w-[220px] text-left">
-                                    {zp.imageUrl && <img src={zp.imageUrl} alt="" className="w-8 h-8 rounded object-contain bg-neutral-800 shrink-0" />}
-                                    <div>
-                                      <div className="text-xs text-white font-medium leading-snug">{zp.productName}</div>
-                                      {zp.unit && <div className="text-xs text-neutral-400 mt-0.5">{zp.unit}</div>}
+                            {STORE_KEYS.map(store => {
+                              const p = storePrices[store];
+                              const otherPrices = STORE_KEYS.filter(s => s !== store).map(s => storePrices[s]).filter(Boolean) as PriceEntry[];
+                              const bestOther = otherPrices.length ? otherPrices.reduce((min, x) => x.price < min.price ? x : min) : null;
+                              return (
+                                <td key={store} className="px-3 py-3 text-right">
+                                  {p ? (
+                                    <div className="relative group/price inline-block text-right">
+                                      <button onClick={() => onSendToStore?.(item, store)} className="text-right hover:opacity-70 transition-opacity" title={`Add to ${STORE_LABEL[store]} cart`}>
+                                        <div className="font-semibold text-xs text-white">₹{(p.price * item.quantity).toFixed(0)}</div>
+                                        <div className={`text-xs ${cheapestItemStore === store && bestOther ? 'text-emerald-500' : ageFreshness(p.scrapedAt)}`}>
+                                          {cheapestItemStore === store && bestOther ? `-₹${((bestOther.price - p.price) * item.quantity).toFixed(0)}` : priceAge(p.scrapedAt)}
+                                        </div>
+                                      </button>
+                                      <div className="pointer-events-none absolute bottom-full right-0 mb-1.5 hidden group-hover/price:flex z-20 items-center gap-2 bg-neutral-900 dark:bg-neutral-800 border border-neutral-700 rounded-lg px-2.5 py-2 shadow-xl w-max max-w-[220px] text-left">
+                                        {p.imageUrl && <img src={p.imageUrl} alt="" className="w-8 h-8 rounded object-contain bg-neutral-800 shrink-0" />}
+                                        <div>
+                                          <div className="text-xs text-white font-medium leading-snug">{p.productName}</div>
+                                          {p.unit && <div className="text-xs text-neutral-400 mt-0.5">{p.unit}</div>}
+                                        </div>
+                                      </div>
                                     </div>
-                                  </div>
-                                </div>
-                              ) : (
-                                <a href={STORE_SEARCH_URL.zepto(encodeURIComponent(item.itemName))} target="_blank" rel="noopener noreferrer" className="inline-flex hover:scale-110 transition-transform">
-                                  <img src={STORE_FAVICON.zepto} width={13} height={13} alt="Search Zepto" className="rounded-sm" />
-                                </a>
-                              )}
-                            </td>
-                            <td className="px-3 py-3 text-right">
-                              {ip ? (
-                                <div className="relative group/price inline-block text-right">
-                                  <button onClick={() => onSendToStore?.(item, 'instamart')} className="text-right hover:opacity-70 transition-opacity" title="Add to Swiggy cart">
-                                    <div className="font-semibold text-xs text-white">₹{(ip.price * item.quantity).toFixed(0)}</div>
-                                    <div className={`text-xs ${cheapestItemStore === 'instamart' && _bestOtherI ? 'text-emerald-500' : ageFreshness(ip.scrapedAt)}`}>{cheapestItemStore === 'instamart' && _bestOtherI ? `-₹${((_bestOtherI.price - ip.price) * item.quantity).toFixed(0)}` : priceAge(ip.scrapedAt)}</div>
-                                  </button>
-                                  <div className="pointer-events-none absolute bottom-full right-0 mb-1.5 hidden group-hover/price:flex z-20 items-center gap-2 bg-neutral-900 dark:bg-neutral-800 border border-neutral-700 rounded-lg px-2.5 py-2 shadow-xl w-max max-w-[220px] text-left">
-                                    {ip.imageUrl && <img src={ip.imageUrl} alt="" className="w-8 h-8 rounded object-contain bg-neutral-800 shrink-0" />}
-                                    <div>
-                                      <div className="text-xs text-white font-medium leading-snug">{ip.productName}</div>
-                                      {ip.unit && <div className="text-xs text-neutral-400 mt-0.5">{ip.unit}</div>}
-                                    </div>
-                                  </div>
-                                </div>
-                              ) : (
-                                <a href={STORE_SEARCH_URL.instamart(encodeURIComponent(item.itemName))} target="_blank" rel="noopener noreferrer" className="inline-flex hover:scale-110 transition-transform">
-                                  <img src={STORE_FAVICON.instamart} width={13} height={13} alt="Search Swiggy" className="rounded-sm" />
-                                </a>
-                              )}
-                            </td>
-                            <td className="px-3 py-3 text-right">
-                              {fp ? (
-                                <div className="relative group/price inline-block text-right">
-                                  <button onClick={() => onSendToStore?.(item, 'flipkart_minutes')} className="text-right hover:opacity-70 transition-opacity" title="Add to Flipkart cart">
-                                    <div className="font-semibold text-xs text-white">₹{(fp.price * item.quantity).toFixed(0)}</div>
-                                    <div className={`text-xs ${cheapestItemStore === 'flipkart_minutes' && _bestOtherF ? 'text-emerald-500' : ageFreshness(fp.scrapedAt)}`}>{cheapestItemStore === 'flipkart_minutes' && _bestOtherF ? `-₹${((_bestOtherF.price - fp.price) * item.quantity).toFixed(0)}` : priceAge(fp.scrapedAt)}</div>
-                                  </button>
-                                  <div className="pointer-events-none absolute bottom-full right-0 mb-1.5 hidden group-hover/price:flex z-20 items-center gap-2 bg-neutral-900 dark:bg-neutral-800 border border-neutral-700 rounded-lg px-2.5 py-2 shadow-xl w-max max-w-[220px] text-left">
-                                    {fp.imageUrl && <img src={fp.imageUrl} alt="" className="w-8 h-8 rounded object-contain bg-neutral-800 shrink-0" />}
-                                    <div>
-                                      <div className="text-xs text-white font-medium leading-snug">{fp.productName}</div>
-                                      {fp.unit && <div className="text-xs text-neutral-400 mt-0.5">{fp.unit}</div>}
-                                    </div>
-                                  </div>
-                                </div>
-                              ) : (
-                                <a href={STORE_SEARCH_URL.flipkart_minutes(encodeURIComponent(item.itemName))} target="_blank" rel="noopener noreferrer" className="inline-flex hover:scale-110 transition-transform">
-                                  <img src={STORE_FAVICON.flipkart_minutes} width={13} height={13} alt="Search Flipkart" className="rounded-sm" />
-                                </a>
-                              )}
-                            </td>
-                            <td className="px-3 py-3 text-right">
-                              {ap ? (
-                                <div className="relative group/price inline-block text-right">
-                                  <button onClick={() => onSendToStore?.(item, 'amazon_fresh')} className="text-right hover:opacity-70 transition-opacity" title="Add to Amazon cart">
-                                    <div className="font-semibold text-xs text-white">₹{(ap.price * item.quantity).toFixed(0)}</div>
-                                    <div className={`text-xs ${cheapestItemStore === 'amazon_fresh' && _bestOtherA ? 'text-emerald-500' : ageFreshness(ap.scrapedAt)}`}>{cheapestItemStore === 'amazon_fresh' && _bestOtherA ? `-₹${((_bestOtherA.price - ap.price) * item.quantity).toFixed(0)}` : priceAge(ap.scrapedAt)}</div>
-                                  </button>
-                                  <div className="pointer-events-none absolute bottom-full right-0 mb-1.5 hidden group-hover/price:flex z-20 items-center gap-2 bg-neutral-900 dark:bg-neutral-800 border border-neutral-700 rounded-lg px-2.5 py-2 shadow-xl w-max max-w-[220px] text-left">
-                                    {ap.imageUrl && <img src={ap.imageUrl} alt="" className="w-8 h-8 rounded object-contain bg-neutral-800 shrink-0" />}
-                                    <div>
-                                      <div className="text-xs text-white font-medium leading-snug">{ap.productName}</div>
-                                      {ap.unit && <div className="text-xs text-neutral-400 mt-0.5">{ap.unit}</div>}
-                                    </div>
-                                  </div>
-                                </div>
-                              ) : (
-                                <a href={STORE_SEARCH_URL.amazon_fresh(encodeURIComponent(item.itemName))} target="_blank" rel="noopener noreferrer" className="inline-flex hover:scale-110 transition-transform">
-                                  <img src={STORE_FAVICON.amazon_fresh} width={13} height={13} alt="Search Amazon" className="rounded-sm" />
-                                </a>
-                              )}
-                            </td>
+                                  ) : (
+                                    <a href={STORE_SEARCH_URL[store](encodeURIComponent(item.itemName))} target="_blank" rel="noopener noreferrer" className="inline-flex hover:scale-110 transition-transform">
+                                      <img src={STORE_FAVICON[store]} width={13} height={13} alt={`Search ${STORE_LABEL[store]}`} className="rounded-sm" />
+                                    </a>
+                                  )}
+                                </td>
+                              );
+                            })}
                           </>
                         )}
 
@@ -578,6 +552,7 @@ export default function GroceryCart() {
   const [sessions, setSessions] = useState<CartSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [creatingStore, setCreatingStore] = useState<GroceryStore | null>(null);
+  const [visibleStores, setVisibleStores] = useState<Set<GroceryStore>>(new Set(['zepto', 'instamart', 'flipkart_minutes', 'amazon_fresh']));
 
   const upsertSession = useCallback((s: CartSession) => {
     setSessions(prev => {
@@ -596,10 +571,13 @@ export default function GroceryCart() {
       ]);
       const [sessionsJson, mainJson] = await Promise.all([sessionsRes.json(), mainRes.json()]);
       const all: CartSession[] = sessionsJson.data ?? [];
-      const main: CartSession = mainJson.data;
-      // merge: ensure main is in list
-      const merged = all.find(s => s._id === main._id) ? all : [...all, main];
-      setSessions(merged);
+      const main: CartSession | undefined = mainJson.data;
+      if (main) {
+        const merged = all.find(s => s._id === main._id) ? all : [...all, main];
+        setSessions(merged);
+      } else {
+        setSessions(all);
+      }
     } finally { setLoading(false); }
   }, []);
 
@@ -630,12 +608,42 @@ export default function GroceryCart() {
 
   const mainCart = sessions.find(s => s.cartType === 'main');
   const storeCarts = sessions.filter(s => s.cartType && s.cartType !== 'main' && s.cartType !== null);
+  const storeItemMap = new Map<string, GroceryStore[]>();
+  for (const cart of storeCarts.filter(s => s.status === 'active')) {
+    for (const it of cart.items) {
+      const stores = storeItemMap.get(it.itemId) ?? [];
+      if (!stores.includes(cart.cartType as GroceryStore)) stores.push(cart.cartType as GroceryStore);
+      storeItemMap.set(it.itemId, stores);
+    }
+  }
   const completedCarts = sessions.filter(s => s.status === 'completed' && s.cartType !== 'main');
 
   if (loading) return <div className="text-center py-16 text-neutral-400 text-sm">Loading…</div>;
 
   return (
     <div>
+      {/* Store filter toggles */}
+      <div className="flex items-center gap-2 mb-4">
+        <span className="text-xs text-neutral-400 mr-1">Stores:</span>
+        {(['zepto', 'instamart', 'flipkart_minutes', 'amazon_fresh'] as GroceryStore[]).map(store => (
+          <button key={store}
+            onClick={() => setVisibleStores(prev => {
+              const next = new Set(prev);
+              next.has(store) ? next.delete(store) : next.add(store);
+              return next;
+            })}
+            className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold border transition-colors ${
+              visibleStores.has(store)
+                ? 'border-emerald-400 dark:border-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300'
+                : 'border-neutral-200 dark:border-neutral-700 text-neutral-400 opacity-50'
+            }`}
+          >
+            <img src={STORE_FAVICON[store]} width={11} height={11} alt="" className="rounded-sm" />
+            {STORE_LABEL[store]}
+          </button>
+        ))}
+      </div>
+
       {/* Store cart creation buttons */}
       <div className="flex items-center justify-between mb-4">
         <span className="text-xs text-neutral-500 dark:text-neutral-400">
@@ -659,8 +667,10 @@ export default function GroceryCart() {
       {mainCart && (
         <CartPanel key={mainCart._id} session={mainCart} isMain
           onUpdate={upsertSession}
-          onDelete={() => {}} // main cart cannot be deleted
+          onDelete={() => {}}
           onSendToStore={handleSendToStore}
+          storeItemMap={storeItemMap}
+          visibleStores={visibleStores}
         />
       )}
 

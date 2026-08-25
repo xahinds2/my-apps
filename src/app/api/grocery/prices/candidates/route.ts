@@ -49,12 +49,21 @@ export async function GET(req: Request) {
       ProductMapping.find({ userId, itemId: objItemId }).lean(),
     ]);
 
-    const confirmedSet = new Set(mappings.map(m => `${m.store}:${m.productName}`));
+    // Exact-unit confirmed set + legacy (unit='') set that matches any unit
+    const exactConfirmed = new Set<string>();
+    const legacyConfirmed = new Set<string>();
+    for (const m of mappings) {
+      if (m.unit) exactConfirmed.add(`${m.store}:${m.productName}:${m.unit}`);
+      else legacyConfirmed.add(`${m.store}:${m.productName}`);
+    }
+    function isConfirmed(store: string, productName: string, unit: string): boolean {
+      return exactConfirmed.has(`${store}:${productName}:${unit}`) || legacyConfirmed.has(`${store}:${productName}`);
+    }
 
-    // Deduplicate: keep only the latest scrape per store+productName
+    // Deduplicate: keep only the latest scrape per store+productName+unit
     const deduped = new Map<string, typeof entries[0]>();
     for (const e of entries) {
-      const key = `${e.store}:${e.productName}`;
+      const key = `${e.store}:${e.productName}:${e.unit ?? ''}`;
       const existing = deduped.get(key);
       if (!existing || new Date(e.scrapedAt) > new Date(existing.scrapedAt)) deduped.set(key, e);
     }
@@ -65,7 +74,6 @@ export async function GET(req: Request) {
       const pTokens = pLower.split(/[^a-z0-9]+/).filter(t => t.length >= 2);
       const matchCount = tokens.filter(t => pLower.includes(t)).length;
       if (matchCount === 0) return 0;
-      // ratio penalises long names where the matched token is a tiny fraction (e.g. brand names)
       const ratio = matchCount / Math.max(pTokens.length, 1);
       let s = matchCount + ratio * 5;
       if (pLower === termLower) s += 10;
@@ -74,19 +82,33 @@ export async function GET(req: Request) {
       return s;
     }
 
+    // Force-include confirmed mapped products that the name search missed
+    const missingMappings = mappings.filter(m =>
+      m.unit ? !deduped.has(`${m.store}:${m.productName}:${m.unit}`) : ![...deduped.keys()].some(k => k.startsWith(`${m.store}:${m.productName}:`))
+    );
+    if (missingMappings.length > 0) {
+      const extra = await StorePriceEntry.find({
+        $or: missingMappings.map(m => ({ store: m.store, productName: m.productName, ...(m.unit ? { unit: m.unit } : {}) })),
+      }).sort({ scrapedAt: -1 }).lean();
+      for (const e of extra) {
+        const key = `${e.store}:${e.productName}:${e.unit ?? ''}`;
+        if (!deduped.has(key)) deduped.set(key, e);
+      }
+    }
+
     // Confirmed first → relevance score desc → most recently scraped
     const data = [...deduped.values()]
-      .filter(e => score(e.productName) > 0)
+      .filter(e => score(e.productName) > 0 || isConfirmed(e.store, e.productName, e.unit ?? ''))
       .sort((a, b) => {
-        const aC = confirmedSet.has(`${a.store}:${a.productName}`) ? 0 : 1;
-        const bC = confirmedSet.has(`${b.store}:${b.productName}`) ? 0 : 1;
+        const aC = isConfirmed(a.store, a.productName, a.unit ?? '') ? 0 : 1;
+        const bC = isConfirmed(b.store, b.productName, b.unit ?? '') ? 0 : 1;
         if (aC !== bC) return aC - bC;
         const sd = score(b.productName) - score(a.productName);
         if (sd !== 0) return sd;
         return new Date(b.scrapedAt).getTime() - new Date(a.scrapedAt).getTime();
       })
       .slice(0, 100)
-      .map(e => ({ ...e, confirmed: confirmedSet.has(`${e.store}:${e.productName}`) }));
+      .map(e => ({ ...e, confirmed: isConfirmed(e.store, e.productName, e.unit ?? '') }));
 
     return NextResponse.json({ data });
   } catch (err: unknown) {

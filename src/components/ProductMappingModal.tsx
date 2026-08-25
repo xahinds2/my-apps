@@ -21,6 +21,7 @@ export interface MappingEntry {
   itemId: string;
   store: GroceryStore;
   productName: string;
+  unit?: string;
   productUrl?: string;
 }
 
@@ -37,7 +38,7 @@ interface Props {
   mappings: MappingEntry[];
   loading: boolean;
   onClose: () => void;
-  onConfirm: (itemId: string, store: GroceryStore, productName: string) => void;
+  onConfirm: (itemId: string, store: GroceryStore, productName: string, unit: string) => void;
   onRemove: (mapping: MappingEntry) => void;
 }
 
@@ -87,8 +88,8 @@ export default function ProductMappingModal({ item, candidates, mappings, loadin
                       {storeCandidates.length === 0 ? (
                         <p className="text-xs text-neutral-400 dark:text-neutral-600 text-center py-4">No results</p>
                       ) : storeCandidates.map(c => {
-                        const isConfirmed = mappings.some(m => m.store === store && m.productName === c.productName);
-                        const thisMapping = mappings.find(m => m.store === store && m.productName === c.productName);
+                        const isConfirmed = mappings.some(m => m.store === store && m.productName === c.productName && (!m.unit || (m.unit ?? '') === (c.unit ?? '')));
+                        const thisMapping = mappings.find(m => m.store === store && m.productName === c.productName && (!m.unit || (m.unit ?? '') === (c.unit ?? '')));
                         return (
                           <div
                             key={c._id}
@@ -127,7 +128,7 @@ export default function ProductMappingModal({ item, candidates, mappings, loadin
                               </button>
                             ) : (
                               <button
-                                onClick={() => onConfirm(item.itemId, store, c.productName)}
+                                onClick={() => onConfirm(item.itemId, store, c.productName, c.unit ?? '')}
                                 className="w-full py-1 rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors flex items-center justify-center gap-1 text-xs"
                               >
                                 <Plus size={11} /> Map

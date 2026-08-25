@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db';
 import { getAuthUser } from '@/lib/authHelper';
 import GroceryItem, { UNITS } from '@/features/grocery/models/GroceryItem';
+import CartSession from '@/features/grocery/models/CartSession';
+import ProductMapping from '@/features/grocery/models/ProductMapping';
 import mongoose from 'mongoose';
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -24,6 +26,18 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
     const item = await GroceryItem.findOneAndUpdate({ _id: id, userId }, { $set: update }, { returnDocument: 'after' });
     if (!item) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+
+    if (update.name) {
+      const oid = new mongoose.Types.ObjectId(id);
+      await Promise.all([
+        CartSession.updateMany(
+          { userId, 'items.itemId': oid },
+          { $set: { 'items.$[elem].itemName': update.name } },
+          { arrayFilters: [{ 'elem.itemId': oid }] }
+        ),
+        ProductMapping.updateMany({ userId, itemId: oid }, { $set: { itemName: update.name } }),
+      ]);
+    }
 
     return NextResponse.json({ data: item });
   } catch (err: unknown) {

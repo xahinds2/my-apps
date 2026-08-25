@@ -316,19 +316,19 @@ export default function GroceryList() {
     document.body.style.overflow = '';
   }
 
-  async function confirmMapping(itemId: string, store: 'zepto' | 'instamart' | 'flipkart_minutes' | 'amazon_fresh', productName: string) {
+  async function confirmMapping(itemId: string, store: 'zepto' | 'instamart' | 'flipkart_minutes' | 'amazon_fresh', productName: string, unit: string) {
     const res = await fetch('/api/grocery/mapping', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ itemId, store, productName }),
+      body: JSON.stringify({ itemId, store, productName, unit }),
     });
     const json = await res.json();
     if (json.data) {
       setMappings(prev => [
-        ...prev.filter(m => !(String(m.itemId) === itemId && m.store === store && m.productName === productName)),
+        ...prev.filter(m => !(String(m.itemId) === itemId && m.store === store && m.productName === productName && (m.unit ?? '') === unit)),
         json.data,
       ]);
-      setCandidates(prev => prev.map(c => c.store === store && c.productName === productName ? { ...c, confirmed: true } : c));
+      setCandidates(prev => prev.map(c => c.store === store && c.productName === productName && (c.unit ?? '') === unit ? { ...c, confirmed: true } : c));
     }
   }
 

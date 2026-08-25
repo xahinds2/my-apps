@@ -7,6 +7,7 @@ export interface IProductMapping extends Document {
   itemName: string;
   store: GroceryStore;
   productName: string;
+  unit: string;
   productUrl?: string;
   createdAt: Date;
 }
@@ -18,13 +19,13 @@ const ProductMappingSchema: Schema = new Schema(
     itemName:    { type: String, required: true },
     store:       { type: String, enum: STORES, required: true },
     productName: { type: String, required: true },
+    unit:        { type: String, default: '' },
     productUrl:  { type: String },
   },
   { timestamps: true }
 );
 
-// Multiple mappings allowed per store — one per distinct product (e.g. 250g and 500g Carrot both from Zepto)
-ProductMappingSchema.index({ userId: 1, itemId: 1, store: 1, productName: 1 }, { unique: true });
+ProductMappingSchema.index({ userId: 1, itemId: 1, store: 1, productName: 1, unit: 1 }, { unique: true });
 
 if (process.env.NODE_ENV === 'development') {
   delete (mongoose.models as Record<string, unknown>).ProductMapping;

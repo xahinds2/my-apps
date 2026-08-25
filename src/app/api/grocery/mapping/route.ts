@@ -41,7 +41,7 @@ export async function POST(req: Request) {
   try {
     const { userId } = await getAuthUser(req);
     const body = await req.json();
-    const { itemId, store, productName: confirmedProductName } = body ?? {};
+    const { itemId, store, productName: confirmedProductName, unit: confirmedUnit } = body ?? {};
 
     if (!itemId || !mongoose.isValidObjectId(itemId)) {
       return NextResponse.json({ error: 'Invalid itemId' }, { status: 400 });
@@ -56,15 +56,17 @@ export async function POST(req: Request) {
     const objItemId = new mongoose.Types.ObjectId(itemId);
     if (!confirmedProductName) return NextResponse.json({ error: 'productName required' }, { status: 400 });
 
-    const entry = await StorePriceEntry.findOne({ store, productName: confirmedProductName }).lean();
+    const priceQuery: Record<string, unknown> = { store, productName: confirmedProductName };
+    if (confirmedUnit) priceQuery.unit = confirmedUnit;
+    const entry = await StorePriceEntry.findOne(priceQuery).lean();
     if (!entry) return NextResponse.json({ error: 'No scraped price found for this item+store' }, { status: 404 });
 
     const groceryItem = await GroceryItem.findById(objItemId).lean();
     const itemName = groceryItem?.name ?? confirmedProductName;
 
     const mapping = await ProductMapping.findOneAndUpdate(
-      { userId, itemId: objItemId, store, productName: entry.productName },
-      { $set: { itemName, productName: entry.productName, productUrl: entry.productUrl } },
+      { userId, itemId: objItemId, store, productName: entry.productName, unit: entry.unit ?? '' },
+      { $set: { itemName, productName: entry.productName, unit: entry.unit ?? '', productUrl: entry.productUrl } },
       { upsert: true, returnDocument: 'after' }
     );
 
