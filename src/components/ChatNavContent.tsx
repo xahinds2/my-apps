@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, Dispatch, SetStateAction } from 'react';
+import { FormEvent, Dispatch, SetStateAction, useEffect } from 'react';
 import { Hash, AtSign, Search, Plus, Check } from 'lucide-react';
 
 type ChatView = { type: 'channel'; id: string } | { type: 'dm'; room: string; peer: string };
@@ -57,6 +57,21 @@ export default function ChatNavContent({
   const inputCls = compact
     ? 'w-full px-2.5 py-1.5 rounded-lg text-xs bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 outline-none focus:ring-1 focus:ring-neutral-400 placeholder-neutral-400'
     : 'w-full px-3 py-2 rounded-xl text-sm bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 outline-none focus:ring-1 focus:ring-neutral-400 placeholder-neutral-400';
+
+  // Escape closes any open search/add mode
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        channelState.setMode(null);
+        channelState.setSearch('');
+        dmState.setMode(null);
+        dmState.setSearch('');
+      }
+    }
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="flex-1 overflow-y-auto">
@@ -175,6 +190,11 @@ export default function ChatNavContent({
           );
         })
       }
+      {mergedDms.length === 0 && !dmState.mode && (
+        <p className={`${px} pb-3 text-xs text-neutral-400`}>
+          Use the search icon to find someone.
+        </p>
+      )}
     </div>
   );
 }

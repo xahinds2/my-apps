@@ -1,21 +1,18 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback, FormEvent, Suspense } from 'react';
+import { useEffect, useRef, useState, useCallback, FormEvent, KeyboardEvent, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Send, Hash, Image as ImageIcon, Settings, X, RefreshCw, AtSign, Link, Search, Plus, Check, ArrowLeft } from 'lucide-react';
 import ChatNavContent from '@/components/ChatNavContent';
 import ChatMessageList from '@/components/ChatMessageList';
 
-const DEFAULT_CHANNELS = [
-  { id: 'general',   desc: 'General conversation' },
-  { id: 'random',    desc: 'Anything goes' },
-  { id: 'tech',      desc: 'Dev & tech talk' },
-  { id: 'off-topic', desc: 'Everything else' },
-];
-
 type ChatView =
   | { type: 'channel'; id: string }
   | { type: 'dm'; room: string; peer: string };
+
+function msgCacheKey(view: ChatView) {
+  return view.type === 'channel' ? `chat_msgs_ch:${view.id}` : `chat_msgs_dm:${view.room}`;
+}
 
 function makeDmRoom(a: string, b: string) {
   return [a, b].sort().join('::');
@@ -63,7 +60,7 @@ function ChatPage() {
   const [recentDms, setRecentDms] = useState<string[]>([]);
   const [dmInbox, setDmInbox] = useState<{ room: string; peer: string; lastAt: string }[]>([]);
   const [dmLastRead, setDmLastRead] = useState<Record<string, string>>({});
-  const [customChannels, setCustomChannels] = useState<string[]>([]);
+  const [customChannels, setCustomChannels] = useState<string[]>(['general', 'random', 'tech', 'off-topic']);
   const [newChannelInput, setNewChannelInput] = useState('');
   const [newChannelError, setNewChannelError] = useState('');
   const [channelMode, setChannelMode] = useState<null | 'search' | 'add'>(null);
@@ -80,11 +77,15 @@ function ChatPage() {
   const [username, setUsername] = useState('');
   const [usernameError, setUsernameError] = useState('');
   const [sending, setSending] = useState(false);
+  const [messagesLoading, setMessagesLoading] = useState(true);
   const [error, setError] = useState('');
   const [linkCopied, setLinkCopied] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const latestTimestampRef = useRef<string | null>(null);
   const optionsRef = useRef<HTMLDivElement>(null);
+  const didMountRef = useRef(false);
+  const poppingRef = useRef(false);
 
 
   useEffect(() => {
@@ -118,10 +119,19 @@ function ChatPage() {
       const lastRead = localStorage.getItem('chat_dm_last_read');
       if (lastRead) setDmLastRead(JSON.parse(lastRead));
 
-      // Load custom channels
+      // Apply cached channels immediately (after hydration), then refresh from API
+      try {
+        const cached = localStorage.getItem('chat_channels');
+        if (cached) setCustomChannels(JSON.parse(cached));
+      } catch { /* ignore */ }
+
       fetch('/api/chat/channels')
-        .then(r => r.ok ? r.json() : { channels: [] })
-        .then(d => setCustomChannels((d.channels ?? []).filter((c: string) => !DEFAULT_CHANNELS.some(dc => dc.id === c))));
+        .then(r => r.ok ? r.json() : { channels: ['general', 'random', 'tech', 'off-topic'] })
+        .then(d => {
+          const ch = d.channels ?? [];
+          setCustomChannels(ch);
+          try { localStorage.setItem('chat_channels', JSON.stringify(ch)); } catch { /* ignore */ }
+        });
 
       const ch = searchParams.get('ch');
       const dm = searchParams.get('dm');
@@ -153,36 +163,63 @@ function ChatPage() {
 
       setMessages(prev => {
         const ids = new Set(prev.map(m => m._id));
-        return [...prev, ...data.messages.filter(m => !ids.has(m._id))];
+        const updated = [...prev, ...data.messages.filter(m => !ids.has(m._id))];
+        // Cache last 60 messages for instant load next visit
+        try { localStorage.setItem(msgCacheKey(view), JSON.stringify(updated.slice(-60))); } catch { /* ignore */ }
+        return updated;
       });
       latestTimestampRef.current = data.messages[data.messages.length - 1].createdAt;
     } catch { /* silently retry */ }
   }, [view]);
 
-  // Sync URL when view changes
+  // Sync URL when view changes — push so browser back/forward works
   useEffect(() => {
+    if (!didMountRef.current) { didMountRef.current = true; return; }
+    if (poppingRef.current) { poppingRef.current = false; return; }
     const url = view.type === 'channel'
       ? view.id === 'general' ? '/chat' : `/chat?ch=${view.id}`
       : `/chat?dm=${encodeURIComponent(view.peer)}`;
-    router.replace(url, { scroll: false });
+    router.push(url, { scroll: false });
   }, [view, router]);
 
+  // Sync state when browser back/forward changes the URL
   useEffect(() => {
-    // Wait for username before fetching (DM room needs username to be known)
+    function onPop() {
+      const params = new URLSearchParams(window.location.search);
+      const ch = params.get('ch');
+      const dm = params.get('dm');
+      poppingRef.current = true;
+      if (dm && username && dm !== username) {
+        setView({ type: 'dm', room: makeDmRoom(username, dm), peer: dm });
+        setMobileNavOpen(false);
+      } else if (ch) {
+        setView({ type: 'channel', id: ch });
+        setMobileNavOpen(false);
+      } else {
+        setView({ type: 'channel', id: 'general' });
+        setMobileNavOpen(true);
+      }
+    }
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, [username]);
+
+  useEffect(() => {
     if (!username) return;
-    setMessages([]);
+    // Show cached messages instantly, then fetch fresh
+    try {
+      const cached = localStorage.getItem(msgCacheKey(view));
+      setMessages(cached ? JSON.parse(cached) : []);
+    } catch { setMessages([]); }
     latestTimestampRef.current = null;
-    fetchMessages(true);
+    setMessagesLoading(true);
+    fetchMessages(true).finally(() => setMessagesLoading(false));
   }, [view, fetchMessages, username]);
 
   useEffect(() => {
     const id = setInterval(() => fetchMessages(false), 3000);
     return () => clearInterval(id);
   }, [fetchMessages]);
-
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
 
   useEffect(() => {
     function h(e: MouseEvent) {
@@ -211,11 +248,18 @@ function ChatPage() {
   // Poll DM inbox so user sees incoming DMs they didn't initiate
   useEffect(() => {
     if (!username) return;
+    // Load cached inbox immediately
+    try {
+      const cached = localStorage.getItem('chat_dm_inbox');
+      if (cached) setDmInbox(JSON.parse(cached));
+    } catch { /* ignore */ }
     async function fetchInbox() {
       const res = await fetch(`/api/chat/dm/inbox?username=${encodeURIComponent(username)}`).catch(() => null);
       if (!res?.ok) return;
       const data = await res.json();
-      setDmInbox(data.rooms ?? []);
+      const rooms = data.rooms ?? [];
+      setDmInbox(rooms);
+      try { localStorage.setItem('chat_dm_inbox', JSON.stringify(rooms)); } catch { /* ignore */ }
     }
     fetchInbox();
     const id = setInterval(fetchInbox, 5_000);
@@ -260,9 +304,26 @@ function ChatPage() {
       });
       if (!res.ok) { setError('Failed to send. Try again.'); return; }
       setText('');
+      // Reset textarea height
+      if (textareaRef.current) { textareaRef.current.style.height = 'auto'; }
       await fetchMessages(false);
     } catch { setError('Network error. Try again.'); }
     finally { setSending(false); }
+  }
+
+  function handleTextareaKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend(e as unknown as FormEvent);
+    }
+  }
+
+  function handleTextareaChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
+    setText(e.target.value);
+    // Auto-resize
+    const el = e.target;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
   }
 
   async function copyDmLink() {
@@ -326,6 +387,7 @@ function ChatPage() {
     localStorage.setItem('chat_username', trimmed);
     localStorage.removeItem('chat_recent_dms');
     localStorage.removeItem('chat_dm_last_read');
+    localStorage.removeItem('chat_dm_inbox');
     setUsername(trimmed);
     setRecentDms([]);
     setDmInbox([]);
@@ -372,12 +434,12 @@ function ChatPage() {
           </header>
           <ChatNavContent
             view={view}
-            channels={[...DEFAULT_CHANNELS.map(c => c.id), ...customChannels]}
+            channels={customChannels}
             mergedDms={mergedDms}
             unreadRooms={unreadRooms}
             channelState={{ mode: channelMode, setMode: setChannelMode, search: channelSearch, setSearch: setChannelSearch, newInput: newChannelInput, setNewInput: setNewChannelInput, error: newChannelError, setError: setNewChannelError }}
             dmState={{ mode: dmMode as null | 'search', setMode: setDmMode, search: dmSearch, setSearch: setDmSearch, results: dmSearchResults, setResults: setDmSearchResults }}
-            onSelectChannel={id => { setView({ type: 'channel', id }); setMobileNavOpen(false); setChannelSearch(''); setChannelMode(null); router.replace(`/chat?ch=${id}`, { scroll: false }); }}
+            onSelectChannel={id => { setView({ type: 'channel', id }); setMobileNavOpen(false); setChannelSearch(''); setChannelMode(null); }}
             onSelectDm={startDm}
             onCreateChannel={createChannel}
           />
@@ -395,7 +457,7 @@ function ChatPage() {
         <ChatNavContent
           compact
           view={view}
-          channels={[...DEFAULT_CHANNELS.map(c => c.id), ...customChannels]}
+          channels={customChannels}
           mergedDms={mergedDms}
           unreadRooms={unreadRooms}
           channelState={{ mode: channelMode, setMode: setChannelMode, search: channelSearch, setSearch: setChannelSearch, newInput: newChannelInput, setNewInput: setNewChannelInput, error: newChannelError, setError: setNewChannelError }}
@@ -404,13 +466,22 @@ function ChatPage() {
           onSelectDm={startDm}
           onCreateChannel={createChannel}
         />
+        {/* Username identity footer */}
+        {username && (
+          <div className="px-3 py-2.5 border-t border-neutral-200 dark:border-neutral-800 flex items-center gap-2 shrink-0">
+            <div className="w-6 h-6 rounded-full bg-neutral-200 dark:bg-neutral-800 flex items-center justify-center shrink-0">
+              <span className="text-[10px] font-semibold text-neutral-500 dark:text-neutral-400">{username[0].toUpperCase()}</span>
+            </div>
+            <span className="text-xs text-neutral-500 dark:text-neutral-400 truncate flex-1">{username}</span>
+          </div>
+        )}
       </aside>
 
       {/* Chat panel */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
       <header className="flex items-center gap-2 px-4 py-3 border-b border-neutral-200 dark:border-neutral-800 shrink-0">
         {/* Back button — mobile only */}
-        <button onClick={() => { setMobileNavOpen(true); router.replace('/chat', { scroll: false }); }} className="md:hidden flex items-center justify-center w-7 h-7 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors cursor-pointer shrink-0">
+        <button onClick={() => { setMobileNavOpen(true); router.back(); }} className="md:hidden flex items-center justify-center w-7 h-7 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors cursor-pointer shrink-0">
           <ArrowLeft size={15} className="text-neutral-400" />
         </button>
         {/* Current view label */}
@@ -515,6 +586,7 @@ function ChatPage() {
         view={view}
         onStartDm={startDm}
         bottomRef={bottomRef}
+        isLoading={messagesLoading}
       />
 
       {/* Input */}
@@ -534,16 +606,25 @@ function ChatPage() {
               </div>
             )}
           </div>
-          <form onSubmit={handleSend} className="flex flex-1 gap-2">
-            <input
-              type="text"
-              value={text}
-              onChange={e => setText(e.target.value)}
-              placeholder={username ? `Message as ${username}…` : 'Message…'}
-              maxLength={500}
-              disabled={sending}
-              className="flex-1 px-3 py-2 rounded-xl text-sm bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 outline-none focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600 placeholder-neutral-400 disabled:opacity-50"
-            />
+          <form onSubmit={handleSend} className="flex flex-1 gap-2 items-center">
+            <div className="flex-1 relative">
+              <textarea
+                ref={textareaRef}
+                value={text}
+                onChange={handleTextareaChange}
+                onKeyDown={handleTextareaKeyDown}
+                placeholder={username ? `Message as ${username}… (Shift+Enter for newline)` : 'Message…'}
+                maxLength={500}
+                rows={1}
+                disabled={sending}
+                className="w-full px-3 py-2 rounded-xl text-sm bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 outline-none focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600 placeholder-neutral-400 disabled:opacity-50 resize-none overflow-hidden leading-relaxed"
+              />
+              {text.length > 400 && (
+                <span className={`absolute bottom-2 right-2.5 text-[10px] tabular-nums ${text.length >= 490 ? 'text-red-500' : 'text-neutral-400'}`}>
+                  {500 - text.length}
+                </span>
+              )}
+            </div>
             <button type="submit" disabled={sending || !text.trim()} className="flex items-center justify-center w-9 h-9 rounded-xl bg-neutral-900 dark:bg-white text-white dark:text-black hover:opacity-80 transition-opacity disabled:opacity-30 shrink-0 cursor-pointer">
               <Send size={15} />
             </button>
