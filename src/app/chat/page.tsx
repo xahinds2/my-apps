@@ -59,6 +59,17 @@ function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
+function relativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60_000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  if (hours < 48) return 'yesterday';
+  return new Date(iso).toLocaleDateString([], { month: 'short', day: 'numeric' });
+}
+
 function ChatPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -88,6 +99,8 @@ function ChatPage() {
   const [messagesLoading, setMessagesLoading] = useState(true);
   const [error, setError] = useState('');
   const [linkCopied, setLinkCopied] = useState(false);
+  const [tokenCopied, setTokenCopied] = useState(false);
+  const [peerStatus, setPeerStatus] = useState<{ online: boolean; lastActiveAt: string | null } | null>(null);
   const [pendingAttachments, setPendingAttachments] = useState<Attachment[]>([]);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -102,7 +115,27 @@ function ChatPage() {
 
   useEffect(() => {
     async function init() {
+      // Get or generate a persistent device token tied to this browser
+      let deviceToken = localStorage.getItem('chat_device_token');
+      if (!deviceToken) {
+        deviceToken = crypto.randomUUID();
+        localStorage.setItem('chat_device_token', deviceToken);
+      }
+
       let name = localStorage.getItem('chat_username');
+
+      // Try to restore username from device token (works across instances sharing same DB)
+      if (!name) {
+        const r = await fetch(`/api/chat/username?device=${encodeURIComponent(deviceToken)}`).catch(() => null);
+        if (r?.ok) {
+          const d = await r.json();
+          if (d.username) {
+            name = d.username;
+            localStorage.setItem('chat_username', name!);
+          }
+        }
+      }
+
       if (!name) {
         // Auto-claim: generate until one is free
         let candidate = generateUsername();
@@ -110,18 +143,18 @@ function ChatPage() {
           const res = await fetch('/api/chat/username', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username: candidate }),
+            body: JSON.stringify({ username: candidate, deviceToken }),
           }).catch(() => null);
           if (!res || res.status !== 409) { name = candidate; break; }
           candidate = generateUsername();
         }
         localStorage.setItem('chat_username', name!);
       } else {
-        // Ensure existing localStorage username is registered in DB (no-op if already there)
+        // Ensure username is registered in DB with this device token
         fetch('/api/chat/username', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username: name }),
+          body: JSON.stringify({ username: name, deviceToken }),
         }).catch(() => null);
       }
       setUsername(name!);
@@ -256,6 +289,54 @@ function ChatPage() {
     }, 250);
     return () => clearTimeout(id);
   }, [dmSearch, username]);
+
+  // Heartbeat — keep username alive, re-register if expired
+  useEffect(() => {
+    if (!username) return;
+    const deviceToken = localStorage.getItem('chat_device_token') ?? '';
+    async function heartbeat() {
+      const res = await fetch('/api/chat/username', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username }),
+      }).catch(() => null);
+      if (res?.status === 404) {
+        // Username expired — re-register it with device token
+        const re = await fetch('/api/chat/username', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, deviceToken }),
+        }).catch(() => null);
+        if (re?.status === 409) {
+          // Someone else took it — get a fresh identity
+          const fresh = generateUsername();
+          localStorage.setItem('chat_username', fresh);
+          localStorage.removeItem('chat_recent_dms');
+          localStorage.removeItem('chat_dm_last_read');
+          localStorage.removeItem('chat_dm_inbox');
+          window.location.reload();
+        }
+      }
+    }
+    heartbeat();
+    const id = setInterval(heartbeat, 5 * 60 * 1000);
+    return () => clearInterval(id);
+  }, [username]);
+
+  // Poll peer online status in DM view
+  useEffect(() => {
+    if (view.type !== 'dm') { setPeerStatus(null); return; }
+    const peer = view.peer;
+    function fetchStatus() {
+      fetch(`/api/chat/username?status=${encodeURIComponent(peer)}`)
+        .then(r => r.ok ? r.json() : null)
+        .then(d => d && setPeerStatus(d))
+        .catch(() => null);
+    }
+    fetchStatus();
+    const id = setInterval(fetchStatus, 30_000);
+    return () => clearInterval(id);
+  }, [view]);
 
   // Poll DM inbox so user sees incoming DMs they didn't initiate
   useEffect(() => {
@@ -516,19 +597,35 @@ function ChatPage() {
           <ArrowLeft size={15} className="text-neutral-400" />
         </button>
         {/* Current view label */}
-        <div className="md:hidden relative flex items-center gap-1.5 px-2 py-1">
-          <ViewIcon size={15} className="text-neutral-400" />
-          <span className="font-semibold tracking-tight text-sm">{viewLabel}</span>
-          {unreadRooms.size > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-red-500" />
+        <div className="md:hidden relative flex flex-col justify-center px-2 py-0.5">
+          <div className="flex items-center gap-1.5">
+            <ViewIcon size={15} className="text-neutral-400" />
+            <span className="font-semibold tracking-tight text-sm">{viewLabel}</span>
+            {unreadRooms.size > 0 && (
+              <span className="w-2 h-2 rounded-full bg-red-500" />
+            )}
+          </div>
+          {peerStatus && (
+            <span className="text-[10px] flex items-center gap-1 pl-0.5">
+              <span className={`w-1.5 h-1.5 rounded-full ${peerStatus.online ? 'bg-green-500' : 'bg-neutral-400'}`} />
+              {peerStatus.online ? 'Online' : peerStatus.lastActiveAt ? `Last seen ${relativeTime(peerStatus.lastActiveAt)}` : 'Offline'}
+            </span>
           )}
         </div>
 
         <span className="ml-auto" />
         {/* Desktop view label */}
-        <div className="hidden md:flex items-center gap-1.5 absolute left-1/2 -translate-x-1/2">
-          <ViewIcon size={14} className="text-neutral-400" />
-          <span className="font-semibold text-sm">{viewLabel}</span>
+        <div className="hidden md:flex flex-col items-center absolute left-1/2 -translate-x-1/2">
+          <div className="flex items-center gap-1.5">
+            <ViewIcon size={14} className="text-neutral-400" />
+            <span className="font-semibold text-sm">{viewLabel}</span>
+          </div>
+          {peerStatus && (
+            <span className="text-[10px] flex items-center gap-1">
+              <span className={`w-1.5 h-1.5 rounded-full ${peerStatus.online ? 'bg-green-500' : 'bg-neutral-400'}`} />
+              {peerStatus.online ? 'Online' : peerStatus.lastActiveAt ? `Last seen ${relativeTime(peerStatus.lastActiveAt)}` : 'Offline'}
+            </span>
+          )}
         </div>
         {/* Settings — mobile only; desktop uses sidebar */}
         <button onClick={() => setSettingsOpen(true)} className="md:hidden flex items-center justify-center w-7 h-7 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors cursor-pointer" title="Settings">
@@ -599,6 +696,22 @@ function ChatPage() {
                 >
                   <Link size={14} className="text-neutral-400" />
                   {linkCopied ? 'Copied!' : 'Copy link'}
+                </button>
+              </div>
+              <div className="space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400">Restore Code</p>
+                <p className="text-xs text-neutral-400">Copy this code to restore your identity on any other instance or new device.</p>
+                <button
+                  onClick={() => {
+                    const t = localStorage.getItem('chat_device_token') ?? '';
+                    navigator.clipboard.writeText(t).catch(() => null);
+                    setTokenCopied(true);
+                    setTimeout(() => setTokenCopied(false), 2000);
+                  }}
+                  className="w-full flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-medium border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors cursor-pointer"
+                >
+                  <Link size={14} className="text-neutral-400" />
+                  {tokenCopied ? 'Copied!' : 'Copy restore code'}
                 </button>
               </div>
               <div className="space-y-1">
