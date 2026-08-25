@@ -51,7 +51,7 @@ const NOUNS = [
 function generateUsername(): string {
   const adj = ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)];
   const noun = NOUNS[Math.floor(Math.random() * NOUNS.length)];
-  const num = Math.floor(Math.random() * 90) + 10;
+  const num = Math.floor(Math.random() * 9000) + 1000;
   return `${adj}-${noun}-${num}`;
 }
 
@@ -458,7 +458,7 @@ function ChatPage() {
       {mobileNavOpen && (
         <div className="fixed inset-0 z-40 flex flex-col bg-[var(--background)] text-[var(--foreground)] md:hidden">
           <header className="flex items-center justify-between px-4 py-3 border-b border-neutral-200 dark:border-neutral-800 shrink-0">
-            <span className="font-semibold text-sm">Chat</span>
+            <span className="font-semibold text-sm">Whisprr</span>
             <button onClick={() => setSettingsOpen(true)} className="flex items-center justify-center w-7 h-7 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors cursor-pointer" title="Settings">
               <Settings size={15} className="text-neutral-400" />
             </button>
@@ -480,7 +480,7 @@ function ChatPage() {
       {/* Desktop sidebar — hidden on mobile */}
       <aside className="hidden md:flex flex-col w-64 shrink-0 border-r border-neutral-200 dark:border-neutral-800">
         <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-200 dark:border-neutral-800 shrink-0">
-          <span className="font-semibold text-sm">Chat</span>
+          <span className="font-semibold text-sm">Whisprr</span>
           <button onClick={() => setSettingsOpen(true)} className="flex items-center justify-center w-7 h-7 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors cursor-pointer" title="Settings">
             <Settings size={15} className="text-neutral-400" />
           </button>
