@@ -30,6 +30,7 @@ interface ProductMapping {
   itemId: string;
   store: 'zepto' | 'instamart' | 'flipkart_minutes' | 'amazon_fresh';
   productName: string;
+  unit?: string;
 }
 
 // Keyword → emoji for common grocery items

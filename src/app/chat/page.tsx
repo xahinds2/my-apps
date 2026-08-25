@@ -288,7 +288,6 @@ export default function ChatPage() {
   // Mark current DM as read when view switches to it
   useEffect(() => {
     if (view.type === 'dm') markRead(view.room);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view]);
 
   const unreadRooms = new Set(
