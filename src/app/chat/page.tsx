@@ -481,7 +481,7 @@ function ChatPage() {
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
       <header className="flex items-center gap-2 px-4 py-3 border-b border-neutral-200 dark:border-neutral-800 shrink-0">
         {/* Back button — mobile only */}
-        <button onClick={() => { setMobileNavOpen(true); router.back(); }} className="md:hidden flex items-center justify-center w-7 h-7 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors cursor-pointer shrink-0">
+        <button onClick={() => { setMobileNavOpen(true); window.history.pushState(null, '', '/chat'); }} className="md:hidden flex items-center justify-center w-7 h-7 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors cursor-pointer shrink-0">
           <ArrowLeft size={15} className="text-neutral-400" />
         </button>
         {/* Current view label */}
@@ -590,47 +590,47 @@ function ChatPage() {
       />
 
       {/* Input */}
-      <div className="sticky bottom-0 shrink-0 border-t border-neutral-200 dark:border-neutral-800 px-4 py-3 bg-[var(--background)]">
-        {error && <p className="text-xs text-red-500 mb-2">{error}</p>}
-        <div className="flex items-center gap-2">
-          <div ref={optionsRef} className="relative shrink-0">
-            <button onClick={() => setOptionsOpen(o => !o)} className="flex items-center justify-center w-9 h-9 rounded-xl border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors cursor-pointer">
-              <Plus size={16} className="text-neutral-500" />
+      <footer className="shrink-0 border-t border-neutral-200 dark:border-neutral-800 bg-[var(--background)]">
+        {error && <p className="text-xs text-red-500 px-4 pt-2">{error}</p>}
+        <form onSubmit={handleSend} className="flex items-center gap-2 px-4 py-2.5">
+          <div ref={optionsRef} className="relative">
+            <button type="button" onClick={() => setOptionsOpen(o => !o)} className="flex items-center justify-center size-10 rounded-full border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors cursor-pointer">
+              <Plus size={18} className="text-neutral-500" />
             </button>
             {optionsOpen && (
               <div className="absolute left-0 bottom-full mb-2 w-52 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-black shadow-lg z-50 overflow-hidden">
-                <button onClick={handleShareImage} className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors text-left cursor-pointer">
+                <button type="button" onClick={handleShareImage} className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors text-left cursor-pointer">
                   <ImageIcon size={14} className="text-neutral-400 shrink-0" />
                   <span className="text-sm">Share image</span>
                 </button>
               </div>
             )}
           </div>
-          <form onSubmit={handleSend} className="flex flex-1 gap-2 items-center">
-            <div className="flex-1 relative">
-              <textarea
-                ref={textareaRef}
-                value={text}
-                onChange={handleTextareaChange}
-                onKeyDown={handleTextareaKeyDown}
-                placeholder={username ? `Message as ${username}… (Shift+Enter for newline)` : 'Message…'}
-                maxLength={500}
-                rows={1}
-                disabled={sending}
-                className="w-full px-3 py-2 rounded-xl text-sm bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 outline-none focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600 placeholder-neutral-400 disabled:opacity-50 resize-none overflow-hidden leading-relaxed"
-              />
-              {text.length > 400 && (
-                <span className={`absolute bottom-2 right-2.5 text-[10px] tabular-nums ${text.length >= 490 ? 'text-red-500' : 'text-neutral-400'}`}>
-                  {500 - text.length}
-                </span>
-              )}
-            </div>
-            <button type="submit" disabled={sending || !text.trim()} className="flex items-center justify-center w-9 h-9 rounded-xl bg-neutral-900 dark:bg-white text-white dark:text-black hover:opacity-80 transition-opacity disabled:opacity-30 shrink-0 cursor-pointer">
-              <Send size={15} />
-            </button>
-          </form>
-        </div>
-      </div>
+
+          <div className="flex-1 relative flex items-center min-h-10 rounded-full bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 focus-within:ring-2 focus-within:ring-neutral-400 dark:focus-within:ring-neutral-600">
+            <textarea
+              ref={textareaRef}
+              value={text}
+              onChange={handleTextareaChange}
+              onKeyDown={handleTextareaKeyDown}
+              placeholder={username ? `Message as ${username}` : 'Message'}
+              maxLength={500}
+              rows={1}
+              disabled={sending}
+              className="flex-1 bg-transparent px-4 py-2 text-sm placeholder-neutral-400 disabled:opacity-50 resize-none overflow-hidden outline-none leading-snug"
+            />
+            {text.length > 400 && (
+              <span className={`mr-3 text-[10px] tabular-nums shrink-0 ${text.length >= 490 ? 'text-red-500' : 'text-neutral-400'}`}>
+                {500 - text.length}
+              </span>
+            )}
+          </div>
+
+          <button type="submit" disabled={sending || !text.trim()} className="flex items-center justify-center size-10 rounded-full bg-neutral-900 dark:bg-white text-white dark:text-black hover:opacity-80 transition-opacity disabled:opacity-30 cursor-pointer">
+            <Send size={16} />
+          </button>
+        </form>
+      </footer>
       </div>
     </div>
   );
