@@ -32,10 +32,15 @@ function applyRateLimit(req: NextRequest): NextResponse | null {
   return null;
 }
 
+const BLOCKED_PREFIXES = ['/', '/finance', '/manifest', '/grocery'];
+
 export default clerkMiddleware(async (auth, req) => {
-  // Redirect home page when BLOCK_HOME=true
-  if (process.env.BLOCK_HOME === 'true' && req.nextUrl.pathname === '/') {
-    return NextResponse.redirect(new URL('/chat', req.url));
+  // When BLOCK_HOME=true, redirect all app pages to /chat
+  if (process.env.STANDALONE === 'true') {
+    const { pathname } = req.nextUrl;
+    if (!pathname.startsWith('/chat') && BLOCKED_PREFIXES.some(p => pathname === p || pathname.startsWith(p + '/'))) {
+      return NextResponse.redirect(new URL('/chat', req.url));
+    }
   }
 
   // Protect pages that require authentication

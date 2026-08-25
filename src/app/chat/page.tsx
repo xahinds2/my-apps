@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback, FormEvent, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Send, Hash, ChevronDown, Check, Plus, Image as ImageIcon, Settings, X, RefreshCw, AtSign, Link, Search, ArrowLeft } from 'lucide-react';
+import { Send, Hash, Image as ImageIcon, Settings, X, RefreshCw, AtSign, Link, Search, Plus, Check, ArrowLeft } from 'lucide-react';
 import ChatNavContent from '@/components/ChatNavContent';
 import ChatMessageList from '@/components/ChatMessageList';
 
@@ -58,7 +58,6 @@ function ChatPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [view, setView] = useState<ChatView>({ type: 'channel', id: 'general' });
-  const [navOpen, setNavOpen] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(true);
   const [newDmInput, setNewDmInput] = useState('');
   const [recentDms, setRecentDms] = useState<string[]>([]);
@@ -85,8 +84,8 @@ function ChatPage() {
   const [linkCopied, setLinkCopied] = useState(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const latestTimestampRef = useRef<string | null>(null);
-  const navRef = useRef<HTMLDivElement>(null);
   const optionsRef = useRef<HTMLDivElement>(null);
+
 
   useEffect(() => {
     async function init() {
@@ -187,18 +186,6 @@ function ChatPage() {
 
   useEffect(() => {
     function h(e: MouseEvent) {
-      if (navRef.current && !navRef.current.contains(e.target as Node)) {
-        setNavOpen(false);
-        setChannelMode(null); setChannelSearch('');
-        setDmMode(null); setDmSearch('');
-      }
-    }
-    document.addEventListener('mousedown', h);
-    return () => document.removeEventListener('mousedown', h);
-  }, []);
-
-  useEffect(() => {
-    function h(e: MouseEvent) {
       if (optionsRef.current && !optionsRef.current.contains(e.target as Node)) setOptionsOpen(false);
     }
     document.addEventListener('mousedown', h);
@@ -252,7 +239,6 @@ function ChatPage() {
     setRecentDms(updated);
     setView({ type: 'dm', room, peer });
     markRead(room);
-    setNavOpen(false);
     setMobileNavOpen(false);
     setNewDmInput('');
   }
@@ -301,7 +287,6 @@ function ChatPage() {
     setCustomChannels(prev => [...prev, name]);
     setNewChannelInput('');
     setView({ type: 'channel', id: name });
-    setNavOpen(false);
   }
 
   async function handleShareImage() {
@@ -428,95 +413,12 @@ function ChatPage() {
         <button onClick={() => { setMobileNavOpen(true); router.replace('/chat', { scroll: false }); }} className="md:hidden flex items-center justify-center w-7 h-7 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors cursor-pointer shrink-0">
           <ArrowLeft size={15} className="text-neutral-400" />
         </button>
-        {/* Nav picker — mobile only */}
-        <div ref={navRef} className="md:hidden relative">
-          <button
-            onClick={() => setNavOpen(o => !o)}
-            className="relative flex items-center gap-1.5 cursor-pointer rounded-lg px-2 py-1 hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors"
-          >
-            <ViewIcon size={15} className="text-neutral-400" />
-            <span className="font-semibold tracking-tight text-sm">{viewLabel}</span>
-            <ChevronDown size={13} className={`text-neutral-400 transition-transform ${navOpen ? 'rotate-180' : ''}`} />
-            {unreadRooms.size > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-red-500" />
-            )}
-          </button>
-
-          {navOpen && (
-            <div className="absolute left-0 top-full mt-1 w-64 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-black shadow-lg z-50 overflow-hidden">
-              {/* Channels section */}
-              <div className="flex items-center justify-between px-3 pt-2.5 pb-1">
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-neutral-400">Channels</p>
-                <div className="flex gap-0.5">
-                  <button onClick={() => setChannelMode(m => m === 'search' ? null : 'search')} className={`p-1 rounded-md transition-colors cursor-pointer ${channelMode === 'search' ? 'bg-neutral-100 dark:bg-neutral-900' : 'hover:bg-neutral-100 dark:hover:bg-neutral-900'}`} title="Search channels">
-                    <Search size={12} className="text-neutral-400" />
-                  </button>
-                  <button onClick={() => setChannelMode(m => m === 'add' ? null : 'add')} className={`p-1 rounded-md transition-colors cursor-pointer ${channelMode === 'add' ? 'bg-neutral-100 dark:bg-neutral-900' : 'hover:bg-neutral-100 dark:hover:bg-neutral-900'}`} title="New channel">
-                    <Plus size={12} className="text-neutral-400" />
-                  </button>
-                </div>
-              </div>
-              {channelMode === 'search' && (
-                <div className="px-3 pb-2">
-                  <input autoFocus value={channelSearch} onChange={e => setChannelSearch(e.target.value)} placeholder="Search channels…" className="w-full px-2.5 py-1.5 rounded-lg text-xs bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 outline-none focus:ring-1 focus:ring-neutral-400 placeholder-neutral-400" />
-                </div>
-              )}
-              {[...DEFAULT_CHANNELS.map(c => c.id), ...customChannels]
-                .filter(id => !channelSearch || id.includes(channelSearch.toLowerCase()))
-                .map(id => (
-                  <button key={id} onClick={() => { setView({ type: 'channel', id }); setNavOpen(false); setChannelMode(null); setChannelSearch(''); }} className="w-full flex items-center gap-3 px-3 py-2 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors text-left cursor-pointer">
-                    <Hash size={13} className="text-neutral-400 shrink-0" />
-                    <span className="text-sm flex-1">{id}</span>
-                    {view.type === 'channel' && view.id === id && <Check size={13} className="text-neutral-500" />}
-                  </button>
-                ))
-              }
-              {channelMode === 'add' && (
-                <div className="px-3 py-2 border-t border-neutral-100 dark:border-neutral-900">
-                  <form onSubmit={createChannel} className="flex gap-1.5">
-                    <input autoFocus value={newChannelInput} onChange={e => { setNewChannelInput(e.target.value); setNewChannelError(''); }} placeholder="Channel name…" maxLength={32} className="flex-1 px-2.5 py-1.5 rounded-lg text-xs bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 outline-none focus:ring-1 focus:ring-neutral-400 placeholder-neutral-400" />
-                    <button type="submit" disabled={!newChannelInput.trim()} className="px-2.5 py-1.5 rounded-lg text-xs bg-neutral-900 dark:bg-white text-white dark:text-black disabled:opacity-30 cursor-pointer">Add</button>
-                  </form>
-                  {newChannelError && <p className="text-xs text-red-500 mt-1">{newChannelError}</p>}
-                </div>
-              )}
-
-              {/* DMs section */}
-              <div className="border-t border-neutral-100 dark:border-neutral-900" />
-              <div className="flex items-center justify-between px-3 pt-2.5 pb-1">
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-neutral-400">Direct Messages</p>
-                <div className="flex gap-0.5">
-                  <button onClick={() => setDmMode(m => m === 'search' ? null : 'search')} className={`p-1 rounded-md transition-colors cursor-pointer ${dmMode === 'search' ? 'bg-neutral-100 dark:bg-neutral-900' : 'hover:bg-neutral-100 dark:hover:bg-neutral-900'}`} title="Search DMs">
-                    <Search size={12} className="text-neutral-400" />
-                  </button>
-                </div>
-              </div>
-              {dmMode === 'search' && (
-                <div className="px-3 pb-2">
-                  <input autoFocus value={dmSearch} onChange={e => setDmSearch(e.target.value)} placeholder="Search DMs…" className="w-full px-2.5 py-1.5 rounded-lg text-xs bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 outline-none focus:ring-1 focus:ring-neutral-400 placeholder-neutral-400" />
-                  {dmSearchResults.map(u => (
-                    <button key={u} onClick={() => { startDm(u); setDmSearch(''); setDmSearchResults([]); }} className="w-full flex items-center gap-2 px-1 py-2 hover:opacity-70 transition-opacity text-left cursor-pointer">
-                      <AtSign size={12} className="text-neutral-400 shrink-0" />
-                      <span className="text-xs flex-1 truncate">{u}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-              {mergedDms
-                .filter(({ peer }) => !dmSearch || peer.includes(dmSearch.toLowerCase()))
-                .map(({ room, peer }) => {
-                  const isUnread = unreadRooms.has(room);
-                  return (
-                    <button key={room} onClick={() => startDm(peer)} className="w-full flex items-center gap-3 px-3 py-2 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors text-left cursor-pointer">
-                      <AtSign size={13} className="text-neutral-400 shrink-0" />
-                      <span className="text-sm flex-1 truncate">{peer}</span>
-                      {isUnread && <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />}
-                      {!isUnread && view.type === 'dm' && view.peer === peer && <Check size={13} className="text-neutral-500" />}
-                    </button>
-                  );
-                })
-              }
-            </div>
+        {/* Current view label */}
+        <div className="md:hidden relative flex items-center gap-1.5 px-2 py-1">
+          <ViewIcon size={15} className="text-neutral-400" />
+          <span className="font-semibold tracking-tight text-sm">{viewLabel}</span>
+          {unreadRooms.size > 0 && (
+            <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-red-500" />
           )}
         </div>
 
