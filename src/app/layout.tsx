@@ -3,8 +3,8 @@ import { Geist } from 'next/font/google';
 import { ClerkProvider } from '@clerk/nextjs';
 import { Analytics } from '@vercel/analytics/next';
 import ThemeProvider from '@/components/ThemeProvider';
-import ThemeToggle from '@/components/ThemeToggle';
-import Footer from '@/components/Footer';
+import ThemeToggleWrapper from '@/components/ThemeToggleWrapper';
+import FooterWrapper from '@/components/FooterWrapper';
 import './globals.css';
 
 const geist = Geist({ subsets: ['latin'], variable: '--font-geist' });
@@ -26,8 +26,8 @@ export default function RootLayout({
       <body className={`${geist.className} antialiased`}>
         <ThemeProvider>
           {children}
-          <Footer />
-          <ThemeToggle />
+          <FooterWrapper />
+          <ThemeToggleWrapper />
           <Analytics />
         </ThemeProvider>
       </body>
