@@ -2,18 +2,19 @@
 
 import { useEffect, useRef, useState, useCallback, FormEvent, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Send, Hash, ChevronDown, Check, Plus, Image as ImageIcon, Settings, X, RefreshCw, AtSign } from 'lucide-react';
+import { Send, Hash, ChevronDown, Check, Plus, Image as ImageIcon, Settings, X, RefreshCw, AtSign, Link, Search, ArrowLeft } from 'lucide-react';
+import ChatNavContent from '@/components/ChatNavContent';
+import ChatMessageList from '@/components/ChatMessageList';
 
-const CHANNELS = [
+const DEFAULT_CHANNELS = [
   { id: 'general',   desc: 'General conversation' },
   { id: 'random',    desc: 'Anything goes' },
   { id: 'tech',      desc: 'Dev & tech talk' },
   { id: 'off-topic', desc: 'Everything else' },
-] as const;
-type Channel = typeof CHANNELS[number]['id'];
+];
 
 type ChatView =
-  | { type: 'channel'; id: Channel }
+  | { type: 'channel'; id: string }
   | { type: 'dm'; room: string; peer: string };
 
 function makeDmRoom(a: string, b: string) {
@@ -58,10 +59,19 @@ function ChatPage() {
   const searchParams = useSearchParams();
   const [view, setView] = useState<ChatView>({ type: 'channel', id: 'general' });
   const [navOpen, setNavOpen] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(true);
   const [newDmInput, setNewDmInput] = useState('');
   const [recentDms, setRecentDms] = useState<string[]>([]);
   const [dmInbox, setDmInbox] = useState<{ room: string; peer: string; lastAt: string }[]>([]);
   const [dmLastRead, setDmLastRead] = useState<Record<string, string>>({});
+  const [customChannels, setCustomChannels] = useState<string[]>([]);
+  const [newChannelInput, setNewChannelInput] = useState('');
+  const [newChannelError, setNewChannelError] = useState('');
+  const [channelMode, setChannelMode] = useState<null | 'search' | 'add'>(null);
+  const [channelSearch, setChannelSearch] = useState('');
+  const [dmMode, setDmMode] = useState<null | 'search' | 'add'>(null);
+  const [dmSearch, setDmSearch] = useState('');
+  const [dmSearchResults, setDmSearchResults] = useState<string[]>([]);
   const [optionsOpen, setOptionsOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [draftUsername, setDraftUsername] = useState('');
@@ -72,7 +82,8 @@ function ChatPage() {
   const [usernameError, setUsernameError] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
+  const bottomRef = useRef<HTMLDivElement | null>(null);
   const latestTimestampRef = useRef<string | null>(null);
   const navRef = useRef<HTMLDivElement>(null);
   const optionsRef = useRef<HTMLDivElement>(null);
@@ -93,6 +104,13 @@ function ChatPage() {
           candidate = generateUsername();
         }
         localStorage.setItem('chat_username', name!);
+      } else {
+        // Ensure existing localStorage username is registered in DB (no-op if already there)
+        fetch('/api/chat/username', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: name }),
+        }).catch(() => null);
       }
       setUsername(name!);
 
@@ -101,12 +119,19 @@ function ChatPage() {
       const lastRead = localStorage.getItem('chat_dm_last_read');
       if (lastRead) setDmLastRead(JSON.parse(lastRead));
 
+      // Load custom channels
+      fetch('/api/chat/channels')
+        .then(r => r.ok ? r.json() : { channels: [] })
+        .then(d => setCustomChannels((d.channels ?? []).filter((c: string) => !DEFAULT_CHANNELS.some(dc => dc.id === c))));
+
       const ch = searchParams.get('ch');
       const dm = searchParams.get('dm');
       if (dm && dm !== name) {
         setView({ type: 'dm', room: makeDmRoom(name!, dm), peer: dm });
-      } else if (ch && CHANNELS.some(c => c.id === ch)) {
-        setView({ type: 'channel', id: ch as Channel });
+        setMobileNavOpen(false);
+      } else if (ch) {
+        setView({ type: 'channel', id: ch });
+        setMobileNavOpen(false);
       }
     }
     init();
@@ -162,7 +187,11 @@ function ChatPage() {
 
   useEffect(() => {
     function h(e: MouseEvent) {
-      if (navRef.current && !navRef.current.contains(e.target as Node)) setNavOpen(false);
+      if (navRef.current && !navRef.current.contains(e.target as Node)) {
+        setNavOpen(false);
+        setChannelMode(null); setChannelSearch('');
+        setDmMode(null); setDmSearch('');
+      }
     }
     document.addEventListener('mousedown', h);
     return () => document.removeEventListener('mousedown', h);
@@ -180,6 +209,17 @@ function ChatPage() {
     if (settingsOpen) setDraftUsername(username);
     if (!settingsOpen) { setConfirmingUsername(false); setUsernameError(''); }
   }, [settingsOpen, username]);
+
+  // Debounced username search for DM
+  useEffect(() => {
+    if (!dmSearch.trim()) { setDmSearchResults([]); return; }
+    const id = setTimeout(() => {
+      fetch(`/api/chat/username?q=${encodeURIComponent(dmSearch.trim())}`)
+        .then(r => r.ok ? r.json() : { usernames: [] })
+        .then(d => setDmSearchResults((d.usernames ?? []).filter((u: string) => u !== username)));
+    }, 250);
+    return () => clearTimeout(id);
+  }, [dmSearch, username]);
 
   // Poll DM inbox so user sees incoming DMs they didn't initiate
   useEffect(() => {
@@ -213,6 +253,7 @@ function ChatPage() {
     setView({ type: 'dm', room, peer });
     markRead(room);
     setNavOpen(false);
+    setMobileNavOpen(false);
     setNewDmInput('');
   }
 
@@ -236,6 +277,31 @@ function ChatPage() {
       await fetchMessages(false);
     } catch { setError('Network error. Try again.'); }
     finally { setSending(false); }
+  }
+
+  async function copyDmLink() {
+    const url = `${window.location.origin}/chat?dm=${encodeURIComponent(username)}`;
+    await navigator.clipboard.writeText(url).catch(() => null);
+    setLinkCopied(true);
+    setTimeout(() => setLinkCopied(false), 2000);
+  }
+
+  async function createChannel(e: FormEvent) {
+    e.preventDefault();
+    const name = newChannelInput.trim().toLowerCase().replace(/\s+/g, '-');
+    if (!name) return;
+    setNewChannelError('');
+    const res = await fetch('/api/chat/channels', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    }).catch(() => null);
+    if (res?.status === 409) { setNewChannelError('Already exists'); return; }
+    if (!res?.ok) { setNewChannelError('Invalid name'); return; }
+    setCustomChannels(prev => [...prev, name]);
+    setNewChannelInput('');
+    setView({ type: 'channel', id: name });
+    setNavOpen(false);
   }
 
   async function handleShareImage() {
@@ -309,11 +375,61 @@ function ChatPage() {
   const ViewIcon = view.type === 'channel' ? Hash : AtSign;
 
   return (
-    <div className="fixed inset-0 flex flex-col bg-[var(--background)] text-[var(--foreground)]">
-      {/* Header */}
+    <div className="fixed inset-0 flex flex-col md:flex-row bg-[var(--background)] text-[var(--foreground)]">
+      {/* Mobile full-page nav — hidden on md+ */}
+      {mobileNavOpen && (
+        <div className="fixed inset-0 z-40 flex flex-col bg-[var(--background)] text-[var(--foreground)] md:hidden">
+          <header className="flex items-center justify-between px-4 py-3 border-b border-neutral-200 dark:border-neutral-800 shrink-0">
+            <span className="font-semibold text-sm">Chat</span>
+            <button onClick={() => setSettingsOpen(true)} className="flex items-center justify-center w-7 h-7 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors cursor-pointer" title="Settings">
+              <Settings size={15} className="text-neutral-400" />
+            </button>
+          </header>
+          <ChatNavContent
+            view={view}
+            channels={[...DEFAULT_CHANNELS.map(c => c.id), ...customChannels]}
+            mergedDms={mergedDms}
+            unreadRooms={unreadRooms}
+            channelState={{ mode: channelMode, setMode: setChannelMode, search: channelSearch, setSearch: setChannelSearch, newInput: newChannelInput, setNewInput: setNewChannelInput, error: newChannelError, setError: setNewChannelError }}
+            dmState={{ mode: dmMode as null | 'search', setMode: setDmMode, search: dmSearch, setSearch: setDmSearch, results: dmSearchResults, setResults: setDmSearchResults }}
+            onSelectChannel={id => { setView({ type: 'channel', id }); setMobileNavOpen(false); setChannelSearch(''); setChannelMode(null); router.replace(`/chat?ch=${id}`, { scroll: false }); }}
+            onSelectDm={startDm}
+            onCreateChannel={createChannel}
+          />
+        </div>
+      )}
+
+      {/* Desktop sidebar — hidden on mobile */}
+      <aside className="hidden md:flex flex-col w-64 shrink-0 border-r border-neutral-200 dark:border-neutral-800">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-200 dark:border-neutral-800 shrink-0">
+          <span className="font-semibold text-sm">Chat</span>
+          <button onClick={() => setSettingsOpen(true)} className="flex items-center justify-center w-7 h-7 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors cursor-pointer" title="Settings">
+            <Settings size={15} className="text-neutral-400" />
+          </button>
+        </div>
+        <ChatNavContent
+          compact
+          view={view}
+          channels={[...DEFAULT_CHANNELS.map(c => c.id), ...customChannels]}
+          mergedDms={mergedDms}
+          unreadRooms={unreadRooms}
+          channelState={{ mode: channelMode, setMode: setChannelMode, search: channelSearch, setSearch: setChannelSearch, newInput: newChannelInput, setNewInput: setNewChannelInput, error: newChannelError, setError: setNewChannelError }}
+          dmState={{ mode: dmMode as null | 'search', setMode: setDmMode, search: dmSearch, setSearch: setDmSearch, results: dmSearchResults, setResults: setDmSearchResults }}
+          onSelectChannel={id => { setView({ type: 'channel', id }); setChannelSearch(''); setChannelMode(null); }}
+          onSelectDm={startDm}
+          onCreateChannel={createChannel}
+        />
+      </aside>
+
+      {/* Chat panel */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
       <header className="flex items-center gap-2 px-4 py-3 border-b border-neutral-200 dark:border-neutral-800 shrink-0">
-        {/* Nav picker: channels + DMs */}
-        <div ref={navRef} className="relative">
+        {/* Back button — mobile only */}
+        <button onClick={() => { setMobileNavOpen(true); router.replace('/chat', { scroll: false }); }} className="md:hidden flex items-center justify-center w-7 h-7 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors cursor-pointer shrink-0">
+          <ArrowLeft size={15} className="text-neutral-400" />
+        </button>
+        {/* Nav picker — mobile only */}
+        <div ref={navRef} className="md:hidden relative">
           <button
             onClick={() => setNavOpen(o => !o)}
             className="relative flex items-center gap-1.5 cursor-pointer rounded-lg px-2 py-1 hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors"
@@ -327,57 +443,91 @@ function ChatPage() {
           </button>
 
           {navOpen && (
-            <div className="absolute left-0 top-full mt-1 w-56 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-black shadow-lg z-50 overflow-hidden">
-              <p className="px-3 pt-2.5 pb-1 text-[10px] font-semibold uppercase tracking-widest text-neutral-400">Channels</p>
-              {CHANNELS.map(ch => (
-                <button
-                  key={ch.id}
-                  onClick={() => { setView({ type: 'channel', id: ch.id }); setNavOpen(false); }}
-                  className="w-full flex items-center gap-3 px-3 py-2 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors text-left cursor-pointer"
-                >
-                  <Hash size={13} className="text-neutral-400 shrink-0" />
-                  <span className="text-sm flex-1">{ch.id}</span>
-                  {view.type === 'channel' && view.id === ch.id && <Check size={13} className="text-neutral-500" />}
-                </button>
-              ))}
-
-              <div className="border-t border-neutral-100 dark:border-neutral-900 mt-1" />
-              <p className="px-3 pt-2.5 pb-1 text-[10px] font-semibold uppercase tracking-widest text-neutral-400">Direct Messages</p>
-              {mergedDms.map(({ room, peer }) => {
-                const isUnread = unreadRooms.has(room);
-                return (
-                  <button
-                    key={room}
-                    onClick={() => startDm(peer)}
-                    className="w-full flex items-center gap-3 px-3 py-2 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors text-left cursor-pointer"
-                  >
-                    <AtSign size={13} className="text-neutral-400 shrink-0" />
-                    <span className="text-sm flex-1 truncate">{peer}</span>
-                    {isUnread && <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />}
-                    {!isUnread && view.type === 'dm' && view.peer === peer && <Check size={13} className="text-neutral-500" />}
+            <div className="absolute left-0 top-full mt-1 w-64 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-black shadow-lg z-50 overflow-hidden">
+              {/* Channels section */}
+              <div className="flex items-center justify-between px-3 pt-2.5 pb-1">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-neutral-400">Channels</p>
+                <div className="flex gap-0.5">
+                  <button onClick={() => setChannelMode(m => m === 'search' ? null : 'search')} className={`p-1 rounded-md transition-colors cursor-pointer ${channelMode === 'search' ? 'bg-neutral-100 dark:bg-neutral-900' : 'hover:bg-neutral-100 dark:hover:bg-neutral-900'}`} title="Search channels">
+                    <Search size={12} className="text-neutral-400" />
                   </button>
-                );
-              })}
-              <div className="px-3 py-2">
-                <form onSubmit={e => { e.preventDefault(); if (newDmInput.trim()) startDm(newDmInput.trim()); }} className="flex gap-1.5">
-                  <input
-                    value={newDmInput}
-                    onChange={e => setNewDmInput(e.target.value)}
-                    placeholder="New DM…"
-                    maxLength={32}
-                    className="flex-1 px-2.5 py-1.5 rounded-lg text-xs bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 outline-none focus:ring-1 focus:ring-neutral-400 placeholder-neutral-400"
-                  />
-                  <button type="submit" disabled={!newDmInput.trim()} className="px-2.5 py-1.5 rounded-lg text-xs bg-neutral-900 dark:bg-white text-white dark:text-black disabled:opacity-30 cursor-pointer">
-                    Go
+                  <button onClick={() => setChannelMode(m => m === 'add' ? null : 'add')} className={`p-1 rounded-md transition-colors cursor-pointer ${channelMode === 'add' ? 'bg-neutral-100 dark:bg-neutral-900' : 'hover:bg-neutral-100 dark:hover:bg-neutral-900'}`} title="New channel">
+                    <Plus size={12} className="text-neutral-400" />
                   </button>
-                </form>
+                </div>
               </div>
+              {channelMode === 'search' && (
+                <div className="px-3 pb-2">
+                  <input autoFocus value={channelSearch} onChange={e => setChannelSearch(e.target.value)} placeholder="Search channels…" className="w-full px-2.5 py-1.5 rounded-lg text-xs bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 outline-none focus:ring-1 focus:ring-neutral-400 placeholder-neutral-400" />
+                </div>
+              )}
+              {[...DEFAULT_CHANNELS.map(c => c.id), ...customChannels]
+                .filter(id => !channelSearch || id.includes(channelSearch.toLowerCase()))
+                .map(id => (
+                  <button key={id} onClick={() => { setView({ type: 'channel', id }); setNavOpen(false); setChannelMode(null); setChannelSearch(''); }} className="w-full flex items-center gap-3 px-3 py-2 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors text-left cursor-pointer">
+                    <Hash size={13} className="text-neutral-400 shrink-0" />
+                    <span className="text-sm flex-1">{id}</span>
+                    {view.type === 'channel' && view.id === id && <Check size={13} className="text-neutral-500" />}
+                  </button>
+                ))
+              }
+              {channelMode === 'add' && (
+                <div className="px-3 py-2 border-t border-neutral-100 dark:border-neutral-900">
+                  <form onSubmit={createChannel} className="flex gap-1.5">
+                    <input autoFocus value={newChannelInput} onChange={e => { setNewChannelInput(e.target.value); setNewChannelError(''); }} placeholder="Channel name…" maxLength={32} className="flex-1 px-2.5 py-1.5 rounded-lg text-xs bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 outline-none focus:ring-1 focus:ring-neutral-400 placeholder-neutral-400" />
+                    <button type="submit" disabled={!newChannelInput.trim()} className="px-2.5 py-1.5 rounded-lg text-xs bg-neutral-900 dark:bg-white text-white dark:text-black disabled:opacity-30 cursor-pointer">Add</button>
+                  </form>
+                  {newChannelError && <p className="text-xs text-red-500 mt-1">{newChannelError}</p>}
+                </div>
+              )}
+
+              {/* DMs section */}
+              <div className="border-t border-neutral-100 dark:border-neutral-900" />
+              <div className="flex items-center justify-between px-3 pt-2.5 pb-1">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-neutral-400">Direct Messages</p>
+                <div className="flex gap-0.5">
+                  <button onClick={() => setDmMode(m => m === 'search' ? null : 'search')} className={`p-1 rounded-md transition-colors cursor-pointer ${dmMode === 'search' ? 'bg-neutral-100 dark:bg-neutral-900' : 'hover:bg-neutral-100 dark:hover:bg-neutral-900'}`} title="Search DMs">
+                    <Search size={12} className="text-neutral-400" />
+                  </button>
+                </div>
+              </div>
+              {dmMode === 'search' && (
+                <div className="px-3 pb-2">
+                  <input autoFocus value={dmSearch} onChange={e => setDmSearch(e.target.value)} placeholder="Search DMs…" className="w-full px-2.5 py-1.5 rounded-lg text-xs bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 outline-none focus:ring-1 focus:ring-neutral-400 placeholder-neutral-400" />
+                  {dmSearchResults.map(u => (
+                    <button key={u} onClick={() => { startDm(u); setDmSearch(''); setDmSearchResults([]); }} className="w-full flex items-center gap-2 px-1 py-2 hover:opacity-70 transition-opacity text-left cursor-pointer">
+                      <AtSign size={12} className="text-neutral-400 shrink-0" />
+                      <span className="text-xs flex-1 truncate">{u}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {mergedDms
+                .filter(({ peer }) => !dmSearch || peer.includes(dmSearch.toLowerCase()))
+                .map(({ room, peer }) => {
+                  const isUnread = unreadRooms.has(room);
+                  return (
+                    <button key={room} onClick={() => startDm(peer)} className="w-full flex items-center gap-3 px-3 py-2 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors text-left cursor-pointer">
+                      <AtSign size={13} className="text-neutral-400 shrink-0" />
+                      <span className="text-sm flex-1 truncate">{peer}</span>
+                      {isUnread && <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />}
+                      {!isUnread && view.type === 'dm' && view.peer === peer && <Check size={13} className="text-neutral-500" />}
+                    </button>
+                  );
+                })
+              }
             </div>
           )}
         </div>
 
         <span className="ml-auto" />
-        <button onClick={() => setSettingsOpen(true)} className="flex items-center justify-center w-7 h-7 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors cursor-pointer" title="Settings">
+        {/* Desktop view label */}
+        <div className="hidden md:flex items-center gap-1.5 absolute left-1/2 -translate-x-1/2">
+          <ViewIcon size={14} className="text-neutral-400" />
+          <span className="font-semibold text-sm">{viewLabel}</span>
+        </div>
+        {/* Settings — mobile only; desktop uses sidebar */}
+        <button onClick={() => setSettingsOpen(true)} className="md:hidden flex items-center justify-center w-7 h-7 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors cursor-pointer" title="Settings">
           <Settings size={15} className="text-neutral-400" />
         </button>
       </header>
@@ -435,6 +585,18 @@ function ChatPage() {
                   </div>
                 )}
               </div>
+              <div className="space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400">Your DM Link</p>
+                <p className="text-xs text-neutral-400">Share this link so others can message you directly.</p>
+                <button
+                  onClick={copyDmLink}
+                  disabled={!username}
+                  className="w-full flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-medium border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors cursor-pointer disabled:opacity-40"
+                >
+                  <Link size={14} className="text-neutral-400" />
+                  {linkCopied ? 'Copied!' : 'Copy link'}
+                </button>
+              </div>
               <div className="space-y-1">
                 <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400">About</p>
                 <p className="text-xs text-neutral-400 leading-relaxed">Fully anonymous. No account, no tracking. Channel messages are public. DMs are private between two usernames.</p>
@@ -445,33 +607,13 @@ function ChatPage() {
       )}
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
-        {messages.length === 0 && (
-          <p className="text-center text-sm text-neutral-400 mt-16">
-            {view.type === 'dm' ? `Start a conversation with ${view.peer}.` : 'No messages yet. Say something.'}
-          </p>
-        )}
-        {messages.map(msg => {
-          const sender = msg.username ?? msg.from ?? '?';
-          const isOwn = sender === username;
-          return (
-            <div key={msg._id} className={`flex flex-col gap-0.5 max-w-xl ${isOwn ? 'ml-auto items-end' : 'items-start'}`}>
-              <span className="text-xs text-neutral-400">
-                {isOwn ? 'you' : (
-                  <button onClick={() => startDm(sender)} className="hover:underline cursor-pointer" title={`DM ${sender}`}>
-                    {sender}
-                  </button>
-                )}
-                {' · '}{formatTime(msg.createdAt)}
-              </span>
-              <div className={`px-3 py-2 rounded-2xl text-sm leading-relaxed break-words ${isOwn ? 'bg-neutral-900 text-white dark:bg-white dark:text-black rounded-br-sm' : 'bg-neutral-100 dark:bg-neutral-900 rounded-bl-sm'}`}>
-                {msg.text}
-              </div>
-            </div>
-          );
-        })}
-        <div ref={bottomRef} />
-      </div>
+      <ChatMessageList
+        messages={messages}
+        username={username}
+        view={view}
+        onStartDm={startDm}
+        bottomRef={bottomRef}
+      />
 
       {/* Input */}
       <div className="sticky bottom-0 shrink-0 border-t border-neutral-200 dark:border-neutral-800 px-4 py-3 bg-[var(--background)]">
@@ -505,6 +647,7 @@ function ChatPage() {
             </button>
           </form>
         </div>
+      </div>
       </div>
     </div>
   );

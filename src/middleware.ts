@@ -33,6 +33,11 @@ function applyRateLimit(req: NextRequest): NextResponse | null {
 }
 
 export default clerkMiddleware(async (auth, req) => {
+  // Redirect home page when BLOCK_HOME=true
+  if (process.env.BLOCK_HOME === 'true' && req.nextUrl.pathname === '/') {
+    return NextResponse.redirect(new URL('/chat', req.url));
+  }
+
   // Protect pages that require authentication
   if (req.nextUrl.pathname.startsWith('/finance') || req.nextUrl.pathname.startsWith('/manifest') || req.nextUrl.pathname.startsWith('/grocery')) {
     await auth.protect();
