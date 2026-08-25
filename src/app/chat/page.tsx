@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback, FormEvent } from 'react';
+import { useEffect, useRef, useState, useCallback, FormEvent, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Send, Hash, ChevronDown, Check, Plus, Image as ImageIcon, Settings, X, RefreshCw, AtSign } from 'lucide-react';
 
@@ -53,7 +53,7 @@ function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
-export default function ChatPage() {
+function ChatPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [view, setView] = useState<ChatView>({ type: 'channel', id: 'general' });
@@ -507,5 +507,13 @@ export default function ChatPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ChatPageWrapper() {
+  return (
+    <Suspense>
+      <ChatPage />
+    </Suspense>
   );
 }
