@@ -107,12 +107,8 @@ function CartPanel({ session, isMain, onUpdate, onDelete, onSendToStore }: CartP
     return prices.find(p => p.itemId === itemId && p.store === store && p.productName === m.productName);
   }
 
-  // Falls back to the cheapest scraped price when no mapping exists yet
   function getBestPriceForItem(itemId: string, store: GroceryStore): PriceEntry | undefined {
-    const mapped = getPriceForItem(itemId, store);
-    if (mapped) return mapped;
-    const candidates = prices.filter(p => p.itemId === itemId && p.store === store);
-    return candidates.length ? candidates.reduce((min, p) => p.price < min.price ? p : min) : undefined;
+    return getPriceForItem(itemId, store);
   }
 
   function storeTotal(store: GroceryStore): { total: number; partial: boolean } | null {

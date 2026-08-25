@@ -4,6 +4,6 @@ export const CATEGORIES = ['vegetables', 'fruits', 'dairy', 'grains', 'snacks', 
 export const UNITS = ['kg', 'g', 'L', 'ml', 'pack', 'piece', 'dozen', 'bunch'] as const;
 export const STORES = ['zepto', 'instamart', 'flipkart_minutes', 'amazon_fresh'] as const;
 
-export type GroceryCategory = (typeof CATEGORIES)[number];
+export type GroceryCategory = string;
 export type GroceryUnit = (typeof UNITS)[number];
 export type GroceryStore = (typeof STORES)[number];

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db';
 import { getAuthUser } from '@/lib/authHelper';
-import GroceryItem, { CATEGORIES, UNITS } from '@/features/grocery/models/GroceryItem';
+import GroceryItem, { UNITS } from '@/features/grocery/models/GroceryItem';
 
 export async function GET() {
   try {
@@ -24,7 +24,7 @@ export async function POST(req: Request) {
     const name = typeof body?.name === 'string' ? body.name.trim().slice(0, 100) : '';
     if (!name) return NextResponse.json({ error: 'Name is required' }, { status: 400 });
 
-    const category = CATEGORIES.includes(body?.category) ? body.category : 'other';
+    const category = typeof body?.category === 'string' && body.category.trim() ? body.category.trim().slice(0, 50) : 'other';
     const unit = UNITS.includes(body?.unit) ? body.unit : 'piece';
     const defaultQuantity = typeof body?.defaultQuantity === 'number' && body.defaultQuantity > 0 ? body.defaultQuantity : 1;
     const note = typeof body?.note === 'string' ? body.note.trim().slice(0, 200) : undefined;

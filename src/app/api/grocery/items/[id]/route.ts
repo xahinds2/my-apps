@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db';
 import { getAuthUser } from '@/lib/authHelper';
-import GroceryItem, { CATEGORIES, UNITS } from '@/features/grocery/models/GroceryItem';
+import GroceryItem, { UNITS } from '@/features/grocery/models/GroceryItem';
 import mongoose from 'mongoose';
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -14,7 +14,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
     const update: Record<string, unknown> = {};
     if (typeof body?.name === 'string' && body.name.trim()) update.name = body.name.trim().slice(0, 100);
-    if (CATEGORIES.includes(body?.category)) update.category = body.category;
+    if (typeof body?.category === 'string' && body.category.trim()) update.category = body.category.trim().slice(0, 50);
     if (UNITS.includes(body?.unit)) update.unit = body.unit;
     if (typeof body?.defaultQuantity === 'number' && body.defaultQuantity > 0) update.defaultQuantity = body.defaultQuantity;
     if (typeof body?.note === 'string') update.note = body.note.trim().slice(0, 200);

@@ -82,7 +82,7 @@ function getItemEmoji(name: string): string | null {
   return match ? match[1] : null;
 }
 
-const CATEGORY_LABEL: Record<GroceryCategory, string> = {
+const CATEGORY_LABEL: Record<string, string> = {
   vegetables: '🥦 Vegetables',
   fruits: '🍎 Fruits',
   dairy: '🥛 Dairy & Eggs',
@@ -93,6 +93,10 @@ const CATEGORY_LABEL: Record<GroceryCategory, string> = {
   personal_care: '🧴 Personal Care',
   other: '📦 Other',
 };
+
+function getCategoryLabel(cat: string): string {
+  return CATEGORY_LABEL[cat] ?? `📦 ${cat.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}`;
+}
 
 export default function GroceryList() {
   const [items, setItems] = useState<GroceryItem[]>([]);
@@ -108,6 +112,9 @@ export default function GroceryList() {
 
   // Inline edit state
   const [editName, setEditName] = useState('');
+  const [editCategory, setEditCategory] = useState<GroceryCategory>('vegetables');
+  const [editCategoryInput, setEditCategoryInput] = useState('');
+  const [newCategoryInput, setNewCategoryInput] = useState('');
 
   // Mapping modal
   const [mappingItem, setMappingItem] = useState<{ itemId: string; itemName: string } | null>(null);
@@ -205,11 +212,9 @@ export default function GroceryList() {
             const confirmedNames = new Set(
               allMappings.filter(m => String(m.itemId) === iid).map(m => m.productName)
             );
-            const mapped = confirmedNames.size > 0
-              ? itemPrices.filter(p => confirmedNames.has(p.productName))
-              : [];
-            const pool = mapped.length > 0 ? mapped : itemPrices;
-            avgPriceMap.set(iid, Math.min(...pool.map(p => p.price)));
+            const mapped = itemPrices.filter(p => confirmedNames.has(p.productName));
+            if (mapped.length === 0) continue;
+            avgPriceMap.set(iid, Math.min(...mapped.map(p => p.price)));
           }
           setItemMinPrices(avgPriceMap);
         });
@@ -226,7 +231,7 @@ export default function GroceryList() {
       const res = await fetch('/api/grocery/items', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newName.trim(), category: newCategory }),
+        body: JSON.stringify({ name: newName.trim(), category: newCategory === '__new__' ? (newCategoryInput.trim() || 'other') : newCategory }),
       });
       const json = await res.json();
       if (json.data) { setItems(prev => [...prev, json.data]); resetForm(); }
@@ -236,12 +241,12 @@ export default function GroceryList() {
   }
 
   function resetForm() {
-    setNewName(''); setNewCategory('vegetables');
+    setNewName(''); setNewCategory('vegetables'); setNewCategoryInput('');
     setShowForm(false);
   }
 
   function startEdit(item: GroceryItem) {
-    setEditId(item._id); setEditName(item.name);
+    setEditId(item._id); setEditName(item.name); setEditCategory(item.category);
     setTimeout(() => nameRef.current?.focus(), 50);
   }
 
@@ -249,7 +254,7 @@ export default function GroceryList() {
     const res = await fetch(`/api/grocery/items/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: editName }),
+      body: JSON.stringify({ name: editName, category: editCategory === '__new__' ? (editCategoryInput.trim() || 'other') : editCategory }),
     });
     const json = await res.json();
     if (json.data) setItems(prev => prev.map(i => i._id === id ? json.data : i));
@@ -336,16 +341,22 @@ export default function GroceryList() {
     }
   }
 
-  const grouped = CATEGORIES.reduce<Record<GroceryCategory, GroceryItem[]>>((acc, cat) => {
-    acc[cat] = items.filter(i => i.category === cat);
-    return acc;
-  }, {} as Record<GroceryCategory, GroceryItem[]>);
+  const customCatsInItems = Array.from(
+    new Set(items.map(i => i.category).filter(c => !(CATEGORIES as readonly string[]).includes(c)))
+  ).sort();
+  const allCategoryOptions = [...CATEGORIES, ...customCatsInItems];
+
+  const grouped: Record<string, GroceryItem[]> = {};
+  for (const cat of allCategoryOptions) {
+    const catItems = items.filter(i => i.category === cat);
+    if (catItems.length > 0) grouped[cat] = catItems;
+  }
 
   if (loading) {
     return <div className="text-center py-16 text-neutral-400 text-sm">Loading…</div>;
   }
 
-  const categoriesInUse = CATEGORIES.filter(cat => grouped[cat].length > 0);
+  const categoriesInUse = allCategoryOptions.filter(cat => grouped[cat]?.length > 0);
 
   return (
     <div>
@@ -390,12 +401,22 @@ export default function GroceryList() {
             />
             <select
               value={newCategory}
-              onChange={e => setNewCategory(e.target.value as GroceryCategory)}
+              onChange={e => { setNewCategory(e.target.value as GroceryCategory); setNewCategoryInput(''); }}
               className="px-3 py-2 text-sm rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 outline-none"
             >
-              {CATEGORIES.map(c => <option key={c} value={c}>{CATEGORY_LABEL[c]}</option>)}
+              {allCategoryOptions.map(c => <option key={c} value={c}>{getCategoryLabel(c)}</option>)}
+              <option value="__new__">✚ New category…</option>
             </select>
           </div>
+          {newCategory === '__new__' && (
+            <input
+              autoFocus
+              value={newCategoryInput}
+              onChange={e => setNewCategoryInput(e.target.value)}
+              placeholder="Category name (e.g. Frozen Food)"
+              className="w-full px-3 py-2 text-sm rounded-lg border border-emerald-400 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white outline-none mb-2"
+            />
+          )}
           <div className="flex gap-2">
             <button
               onClick={addItem}
@@ -425,7 +446,7 @@ export default function GroceryList() {
       {categoriesInUse.map(cat => (
         <div key={cat} className="mb-5">
           <div className="flex items-center gap-3 mb-2 px-1">
-            <span className="text-xs font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-widest">{CATEGORY_LABEL[cat]}</span>
+            <span className="text-xs font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-widest">{getCategoryLabel(cat)}</span>
             <div className="flex-1 h-px bg-neutral-100 dark:bg-neutral-800" />
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
@@ -507,8 +528,24 @@ export default function GroceryList() {
                 value={editName}
                 onChange={e => setEditName(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') saveEdit(editId); if (e.key === 'Escape') setEditId(null); }}
-                className="w-full px-3 py-2 text-sm rounded-lg border border-emerald-500 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white outline-none mb-4"
+                className="w-full px-3 py-2 text-sm rounded-lg border border-emerald-500 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white outline-none mb-3"
               />
+              <select
+                value={editCategory}
+                onChange={e => { setEditCategory(e.target.value as GroceryCategory); setEditCategoryInput(''); }}
+                className={`w-full px-3 py-2 text-sm rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 outline-none ${editCategory === '__new__' ? 'mb-2' : 'mb-4'}`}
+              >
+                {allCategoryOptions.map(c => <option key={c} value={c}>{getCategoryLabel(c)}</option>)}
+                <option value="__new__">✚ New category…</option>
+              </select>
+              {editCategory === '__new__' && (
+                <input
+                  value={editCategoryInput}
+                  onChange={e => setEditCategoryInput(e.target.value)}
+                  placeholder="Category name (e.g. Frozen Food)"
+                  className="w-full px-3 py-2 text-sm rounded-lg border border-emerald-400 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white outline-none mb-4"
+                />
+              )}
               <div className="flex gap-2">
                 <button
                   onClick={() => saveEdit(editId)}

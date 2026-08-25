@@ -17,7 +17,7 @@ const GroceryItemSchema: Schema = new Schema(
   {
     userId: { type: String, required: true },
     name: { type: String, required: true, trim: true, maxlength: 100 },
-    category: { type: String, enum: CATEGORIES, default: 'other' },
+    category: { type: String, default: 'other', trim: true, maxlength: 50 },
     unit: { type: String, enum: UNITS, default: 'piece' },
     defaultQuantity: { type: Number, default: 1, min: 0.1, max: 999 },
     note: { type: String, maxlength: 200 },
