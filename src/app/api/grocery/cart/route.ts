@@ -13,7 +13,7 @@ export async function GET() {
     const sessions = await CartSession.find({ userId }).sort({ createdAt: 1 }).lean();
 
     // Resolve current item names from GroceryItem so renames are reflected immediately
-    const itemIds = [...new Set(sessions.flatMap(s => s.items.map(i => i.itemId.toString())))];
+    const itemIds = [...new Set(sessions.flatMap(s => s.items.map((i: { itemId: { toString(): string } }) => i.itemId.toString())))];
     if (itemIds.length > 0) {
       const groceryItems = await GroceryItem.find({ _id: { $in: itemIds } }, { name: 1 }).lean();
       const nameMap = new Map(groceryItems.map(i => [i._id.toString(), i.name]));

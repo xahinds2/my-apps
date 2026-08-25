@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback, FormEvent } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Send, Hash, ChevronDown, Check, Plus, Image, Link2, Settings, X, RefreshCw, AtSign, Copy } from 'lucide-react';
+import { Send, Hash, ChevronDown, Check, Plus, Image as ImageIcon, Settings, X, RefreshCw, AtSign } from 'lucide-react';
 
 const CHANNELS = [
   { id: 'general',   desc: 'General conversation' },
@@ -66,7 +66,6 @@ export default function ChatPage() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [draftUsername, setDraftUsername] = useState('');
   const [confirmingUsername, setConfirmingUsername] = useState(false);
-  const [copied, setCopied] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [text, setText] = useState('');
   const [username, setUsername] = useState('');
@@ -111,6 +110,7 @@ export default function ChatPage() {
       }
     }
     init();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchMessages = useCallback(async (initial = false) => {
@@ -242,15 +242,8 @@ export default function ChatPage() {
     setOptionsOpen(false);
     try {
       if (navigator.share) await navigator.share({ title: 'chat', url: window.location.href });
-      else { await navigator.clipboard.writeText(window.location.href); setCopied(true); setTimeout(() => setCopied(false), 2000); }
+      else await navigator.clipboard.writeText(window.location.href);
     } catch { /* cancelled */ }
-  }
-
-  async function handleCopyLink() {
-    setOptionsOpen(false);
-    await navigator.clipboard.writeText(window.location.href);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
   }
 
   async function applyUsername() {
@@ -290,12 +283,6 @@ export default function ChatPage() {
     setMessages([]);
     setConfirmingUsername(false);
     setSettingsOpen(false);
-  }
-
-  function resetUsername() {
-    const name = generateUsername();
-    localStorage.setItem('chat_username', name);
-    setUsername(name);
   }
 
   // Mark current DM as read when view switches to it
@@ -498,7 +485,7 @@ export default function ChatPage() {
             {optionsOpen && (
               <div className="absolute left-0 bottom-full mb-2 w-52 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-black shadow-lg z-50 overflow-hidden">
                 <button onClick={handleShareImage} className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors text-left cursor-pointer">
-                  <Image size={14} className="text-neutral-400 shrink-0" />
+                  <ImageIcon size={14} className="text-neutral-400 shrink-0" />
                   <span className="text-sm">Share image</span>
                 </button>
               </div>
