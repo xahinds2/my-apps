@@ -12,8 +12,9 @@ export type Channel = typeof CHANNELS[number];
 const ChatMessageSchema: Schema = new Schema(
   {
     username: { type: String, required: true, trim: true, maxlength: 32 },
-    text: { type: String, required: true, trim: true, maxlength: 500 },
+    text: { type: String, trim: true, maxlength: 500, default: '' },
     channel: { type: String, default: 'general', maxlength: 32 },
+    attachments: [{ url: String, name: String, fileType: String, size: Number }],
   },
   { timestamps: true }
 );

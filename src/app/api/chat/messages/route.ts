@@ -31,14 +31,20 @@ export async function POST(req: NextRequest) {
   const text = String(body.text ?? '').trim().slice(0, 500);
   const ch = String(body.channel ?? '');
   const channel = ch && SLUG_RE.test(ch) ? ch : 'general';
+  const attachments = Array.isArray(body.attachments) ? body.attachments.slice(0, 5) : [];
 
-  if (!username || !text) {
-    return NextResponse.json({ error: 'username and text are required' }, { status: 400 });
+  if (!username || (!text && attachments.length === 0)) {
+    return NextResponse.json({ error: 'username and text or attachments are required' }, { status: 400 });
   }
 
   const db = await connectToDatabase();
   if (!db) return NextResponse.json({ error: 'Database unavailable' }, { status: 503 });
 
-  const message = await ChatMessage.create({ username, text, channel });
-  return NextResponse.json({ message }, { status: 201 });
+  try {
+    const message = await ChatMessage.create({ username, text, channel, attachments });
+    return NextResponse.json({ message }, { status: 201 });
+  } catch (e) {
+    console.error('Message create error:', e);
+    return NextResponse.json({ error: 'Failed to save message' }, { status: 500 });
+  }
 }

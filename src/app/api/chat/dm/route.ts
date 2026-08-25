@@ -36,14 +36,20 @@ export async function POST(req: NextRequest) {
   const to   = String(body.to   ?? '').trim().slice(0, 32);
   const text = String(body.text ?? '').trim().slice(0, 500);
   const room = String(body.room ?? '').trim().slice(0, 70);
+  const attachments = Array.isArray(body.attachments) ? body.attachments.slice(0, 5) : [];
 
-  if (!from || !to || !text || !room) {
-    return NextResponse.json({ error: 'from, to, room, and text are required' }, { status: 400 });
+  if (!from || !to || (!text && attachments.length === 0) || !room) {
+    return NextResponse.json({ error: 'from, to, room, and text or attachments are required' }, { status: 400 });
   }
 
   const db = await connectToDatabase();
   if (!db) return NextResponse.json({ error: 'Database unavailable' }, { status: 503 });
 
-  const message = await DirectMessage.create({ roomId: room, from, to, text });
-  return NextResponse.json({ message }, { status: 201 });
+  try {
+    const message = await DirectMessage.create({ roomId: room, from, to, text, attachments });
+    return NextResponse.json({ message }, { status: 201 });
+  } catch (e) {
+    console.error('DM create error:', e);
+    return NextResponse.json({ error: 'Failed to save message' }, { status: 500 });
+  }
 }

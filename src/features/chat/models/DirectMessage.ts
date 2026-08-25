@@ -13,8 +13,9 @@ const DirectMessageSchema = new Schema(
     roomId: { type: String, required: true, maxlength: 70 },
     from: { type: String, required: true, trim: true, maxlength: 32 },
     to: { type: String, required: true, trim: true, maxlength: 32 },
-    text: { type: String, required: true, trim: true, maxlength: 500 },
+    text: { type: String, trim: true, maxlength: 500, default: '' },
     fromSessionId: { type: String, maxlength: 64 },
+    attachments: [{ url: String, name: String, fileType: String, size: Number }],
   },
   { timestamps: true }
 );

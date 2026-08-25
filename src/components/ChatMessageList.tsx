@@ -1,6 +1,14 @@
 'use client';
 
 import { RefObject, useEffect, useRef, useState } from 'react';
+import { Paperclip, X } from 'lucide-react';
+
+interface Attachment {
+  url: string;
+  name: string;
+  fileType: string;
+  size: number;
+}
 
 interface ChatMessage {
   _id: string;
@@ -8,6 +16,7 @@ interface ChatMessage {
   from?: string;
   text: string;
   createdAt: string;
+  attachments?: Attachment[];
 }
 
 type ChatView = { type: 'channel'; id: string } | { type: 'dm'; room: string; peer: string };
@@ -43,6 +52,7 @@ export default function ChatMessageList({ messages, username, view, onStartDm, b
   const containerRef = useRef<HTMLDivElement>(null);
   const [, setTick] = useState(0);
   const initialScrollDone = useRef(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   // Refresh relative timestamps every minute
   useEffect(() => {
@@ -106,13 +116,27 @@ export default function ChatMessageList({ messages, username, view, onStartDm, b
               <div className={[
                 'px-3 py-2 text-sm leading-relaxed break-words whitespace-pre-wrap max-w-full',
                 isOwn ? 'bg-neutral-900 text-white dark:bg-white dark:text-black' : 'bg-neutral-100 dark:bg-neutral-900',
-                // Top corners: only round if first in group
                 !isGrouped ? 'rounded-t-2xl' : 'rounded-t-lg',
-                // Bottom corners: only round if last in group; indent the near corner
                 isLastInGroup
                   ? isOwn ? 'rounded-bl-2xl rounded-br-sm' : 'rounded-br-2xl rounded-bl-sm'
                   : 'rounded-b-lg',
               ].join(' ')}>
+                {msg.attachments && msg.attachments.length > 0 && (
+                  <div className={`flex flex-wrap gap-1.5 ${msg.text ? 'mb-1.5' : ''}`}>
+                    {msg.attachments.map((a, idx) =>
+                      a.fileType.startsWith('image/') ? (
+                        <button key={idx} onClick={() => setPreviewUrl(a.url)} className="cursor-pointer">
+                          <img src={a.url} alt={a.name} className="max-w-48 max-h-48 rounded-lg object-cover" />
+                        </button>
+                      ) : (
+                        <a key={idx} href={a.url} download={a.name} className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs ${isOwn ? 'bg-white/10 dark:bg-black/10' : 'bg-neutral-200 dark:bg-neutral-800'}`}>
+                          <Paperclip size={12} />
+                          <span className="truncate max-w-32">{a.name}</span>
+                        </a>
+                      )
+                    )}
+                  </div>
+                )}
                 {msg.text}
               </div>
             </div>
@@ -120,6 +144,16 @@ export default function ChatMessageList({ messages, username, view, onStartDm, b
         })}
       </div>
       <div ref={bottomRef} />
+
+      {/* Image preview lightbox */}
+      {previewUrl && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80" onClick={() => setPreviewUrl(null)}>
+          <button onClick={() => setPreviewUrl(null)} className="absolute top-4 right-4 size-10 rounded-full bg-white/10 flex items-center justify-center cursor-pointer hover:bg-white/20 transition-colors">
+            <X size={20} className="text-white" />
+          </button>
+          <img src={previewUrl} alt="Preview" className="max-w-[90vw] max-h-[90vh] rounded-xl object-contain" onClick={e => e.stopPropagation()} />
+        </div>
+      )}
     </div>
   );
 }

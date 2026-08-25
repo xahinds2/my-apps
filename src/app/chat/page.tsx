@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback, FormEvent, KeyboardEvent, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Send, Hash, Image as ImageIcon, Settings, X, RefreshCw, AtSign, Link, Search, Plus, Check, ArrowLeft } from 'lucide-react';
+import { Send, Hash, Image as ImageIcon, Settings, X, RefreshCw, AtSign, Link, Search, Plus, Check, ArrowLeft, Paperclip } from 'lucide-react';
 import ChatNavContent from '@/components/ChatNavContent';
 import ChatMessageList from '@/components/ChatMessageList';
 
@@ -18,12 +18,20 @@ function makeDmRoom(a: string, b: string) {
   return [a, b].sort().join('::');
 }
 
+interface Attachment {
+  url: string;
+  name: string;
+  fileType: string;
+  size: number;
+}
+
 interface ChatMessage {
   _id: string;
   username?: string;
   from?: string;
   text: string;
   createdAt: string;
+  attachments?: Attachment[];
 }
 
 const ADJECTIVES = [
@@ -80,6 +88,10 @@ function ChatPage() {
   const [messagesLoading, setMessagesLoading] = useState(true);
   const [error, setError] = useState('');
   const [linkCopied, setLinkCopied] = useState(false);
+  const [pendingAttachments, setPendingAttachments] = useState<Attachment[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const latestTimestampRef = useRef<string | null>(null);
@@ -287,16 +299,35 @@ function ChatPage() {
     setNewDmInput('');
   }
 
+  async function uploadFile(file: File): Promise<Attachment | null> {
+    const form = new FormData();
+    form.append('file', file);
+    const res = await fetch('/api/chat/upload', { method: 'POST', body: form }).catch(() => null);
+    if (!res?.ok) return null;
+    return res.json();
+  }
+
+  async function handleFileSelect(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    setUploading(true);
+    setOptionsOpen(false);
+    const results = await Promise.all(Array.from(files).slice(0, 5).map(uploadFile));
+    const uploaded = results.filter(Boolean) as Attachment[];
+    setPendingAttachments(prev => [...prev, ...uploaded].slice(0, 5));
+    setUploading(false);
+  }
+
   async function handleSend(e: FormEvent) {
     e.preventDefault();
     const trimmed = text.trim();
-    if (!trimmed || !username) return;
+    if ((!trimmed && pendingAttachments.length === 0) || !username) return;
     setSending(true);
     setError('');
     try {
+      const attachments = pendingAttachments.length > 0 ? pendingAttachments : undefined;
       const [endpoint, body] = view.type === 'channel'
-        ? ['/api/chat/messages', { username, text: trimmed, channel: view.id }]
-        : ['/api/chat/dm', { from: username, to: view.peer, room: view.room, text: trimmed }];
+        ? ['/api/chat/messages', { username, text: trimmed, channel: view.id, attachments }]
+        : ['/api/chat/dm', { from: username, to: view.peer, room: view.room, text: trimmed, attachments }];
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -304,7 +335,7 @@ function ChatPage() {
       });
       if (!res.ok) { setError('Failed to send. Try again.'); return; }
       setText('');
-      // Reset textarea height
+      setPendingAttachments([]);
       if (textareaRef.current) { textareaRef.current.style.height = 'auto'; }
       await fetchMessages(false);
     } catch { setError('Network error. Try again.'); }
@@ -592,6 +623,28 @@ function ChatPage() {
       {/* Input */}
       <footer className="shrink-0 border-t border-neutral-200 dark:border-neutral-800 bg-[var(--background)]">
         {error && <p className="text-xs text-red-500 px-4 pt-2">{error}</p>}
+        {/* Attachment preview */}
+        {pendingAttachments.length > 0 && (
+          <div className="flex gap-2 px-4 pt-2 overflow-x-auto">
+            {pendingAttachments.map((a, i) => (
+              <div key={i} className="relative shrink-0 group">
+                {a.fileType.startsWith('image/') ? (
+                  <img src={a.url} alt={a.name} className="h-16 w-16 object-cover rounded-lg border border-neutral-200 dark:border-neutral-800" />
+                ) : (
+                  <div className="h-16 w-16 rounded-lg border border-neutral-200 dark:border-neutral-800 flex items-center justify-center bg-neutral-50 dark:bg-neutral-900">
+                    <Paperclip size={16} className="text-neutral-400" />
+                  </div>
+                )}
+                <button type="button" onClick={() => setPendingAttachments(prev => prev.filter((_, j) => j !== i))} className="absolute -top-1.5 -right-1.5 size-5 rounded-full bg-red-500 text-white flex items-center justify-center text-xs cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity">
+                  <X size={10} />
+                </button>
+                <p className="text-[9px] text-neutral-400 truncate w-16 mt-0.5 text-center">{a.name}</p>
+              </div>
+            ))}
+          </div>
+        )}
+        <input ref={imageInputRef} type="file" accept="image/*" multiple hidden onChange={e => { handleFileSelect(e.target.files); e.target.value = ''; }} />
+        <input ref={fileInputRef} type="file" accept="image/*,.pdf,.txt,.doc,.docx,.xls,.xlsx,.zip" multiple hidden onChange={e => { handleFileSelect(e.target.files); e.target.value = ''; }} />
         <form onSubmit={handleSend} className="flex items-center gap-2 px-4 py-2.5">
           <div ref={optionsRef} className="relative">
             <button type="button" onClick={() => setOptionsOpen(o => !o)} className="flex items-center justify-center size-10 rounded-full border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors cursor-pointer">
@@ -599,9 +652,13 @@ function ChatPage() {
             </button>
             {optionsOpen && (
               <div className="absolute left-0 bottom-full mb-2 w-52 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-black shadow-lg z-50 overflow-hidden">
-                <button type="button" onClick={handleShareImage} className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors text-left cursor-pointer">
+                <button type="button" onClick={() => { imageInputRef.current?.click(); setOptionsOpen(false); }} className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors text-left cursor-pointer">
                   <ImageIcon size={14} className="text-neutral-400 shrink-0" />
-                  <span className="text-sm">Share image</span>
+                  <span className="text-sm">Image</span>
+                </button>
+                <button type="button" onClick={() => { fileInputRef.current?.click(); setOptionsOpen(false); }} className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors text-left cursor-pointer">
+                  <Paperclip size={14} className="text-neutral-400 shrink-0" />
+                  <span className="text-sm">File</span>
                 </button>
               </div>
             )}
@@ -626,7 +683,7 @@ function ChatPage() {
             )}
           </div>
 
-          <button type="submit" disabled={sending || !text.trim()} className="flex items-center justify-center size-10 rounded-full bg-neutral-900 dark:bg-white text-white dark:text-black hover:opacity-80 transition-opacity disabled:opacity-30 cursor-pointer">
+          <button type="submit" disabled={sending || (!text.trim() && pendingAttachments.length === 0)} className="flex items-center justify-center size-10 rounded-full bg-neutral-900 dark:bg-white text-white dark:text-black hover:opacity-80 transition-opacity disabled:opacity-30 cursor-pointer">
             <Send size={16} />
           </button>
         </form>
